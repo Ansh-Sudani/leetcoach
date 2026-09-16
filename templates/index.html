@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeetCoach</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>LeetCoach</h1>
+      <p class="subtitle">A Socratic hint engine for interview prep — no spoilers, just nudges.</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>Problem</h2>
+        <textarea id="problem-input" placeholder="Paste the problem statement here..."></textarea>
+
+        <h2>Your code / thoughts</h2>
+        <textarea id="code-input" placeholder="Paste your current attempt, or just describe your thinking..."></textarea>
+
+        <div class="hint-controls">
+          <label for="hint-level">Hint level</label>
+          <select id="hint-level">
+            <option value="1">1 — Guiding question</option>
+            <option value="2">2 — Name the pattern</option>
+            <option value="3">3 — Apply it to this problem</option>
+            <option value="4">4 — Pseudocode structure</option>
+          </select>
+          <button id="hint-btn">Get Hint</button>
+        </div>
+
+        <div id="hint-output" class="hint-output" hidden>
+          <strong>Hint:</strong>
+          <p id="hint-text"></p>
+        </div>
+      </section>
+
+      <section class="panel tracker">
+        <h2>Tracked Problems</h2>
+        <form id="add-problem-form">
+          <input id="new-title" type="text" placeholder="Problem title (e.g. Two Sum)" required />
+          <select id="new-difficulty">
+            <option>Easy</option>
+            <option selected>Medium</option>
+            <option>Hard</option>
+          </select>
+          <button type="submit">Add</button>
+        </form>
+        <ul id="problem-list"></ul>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
