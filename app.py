@@ -1,16 +1,43 @@
 import os
+import sys
+import json
+import time
+import subprocess
 import sqlite3
+from collections import defaultdict, deque
 from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, g
 from anthropic import Anthropic
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "coach.db")
+BASE_DIR = os.path.dirname(__file__)
+SANDBOX_RUNNER = os.path.join(BASE_DIR, "sandbox_runner.py")
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+with open(os.path.join(BASE_DIR, "static", "problem_details.json")) as f:
+    PROBLEM_DETAILS = json.load(f)
+
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_MAX_REQUESTS = 8
+_rate_limit_hits = defaultdict(deque)
+
+
+def _rate_limited(key):
+    now = time.time()
+    hits = _rate_limit_hits[key]
+    while hits and now - hits[0] > RATE_LIMIT_WINDOW_SECONDS:
+        hits.popleft()
+    if len(hits) >= RATE_LIMIT_MAX_REQUESTS:
+        return True
+    hits.append(now)
+    return False
 
 HINT_SYSTEM_PROMPT = """You are a Socratic coding interview coach. The user is working on a LeetCode-style
 problem. You are given the problem statement, the user's current code/thoughts, and a hint level (1-4).
@@ -98,6 +125,175 @@ Hint level requested: {hint_level}
             block.text for block in response.content if block.type == "text"
         )
         return jsonify({"hint": hint_text, "hint_level": hint_level})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _limit_resources():
+    import resource
+    resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
+    resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (1024 * 1024, 1024 * 1024))
+
+
+def _values_match(actual, expected, comparator):
+    try:
+        if comparator == "sorted":
+            return sorted(actual) == sorted(expected)
+        if comparator == "set":
+            return set(actual) == set(expected)
+    except Exception:
+        pass
+    return actual == expected
+
+
+SUBMIT_SYSTEM_PROMPT = """You are a concise, encouraging coding interview coach reviewing a candidate's
+LeetCode-style submission. You are given the problem, their code, and the results of running it against
+test cases.
+
+Write a SHORT (3-6 sentences) breakdown:
+- If it passed: briefly note the approach's time/space complexity and one thing worth double-checking
+  (an edge case, a readability nit) — don't just say "looks good."
+- If it failed: name the likely root cause (off-by-one, wrong base case, unhandled edge case, etc.) by
+  reasoning about the specific failing test case(s), but do NOT rewrite their solution or give working code.
+Keep it tight — no walls of text, no restating the whole problem back to them.
+"""
+
+
+def _get_submit_explanation(problem, code, results, all_passed):
+    lines = []
+    for r in results:
+        status = "PASS" if r["passed"] else "FAIL"
+        lines.append(
+            f"{status} args={r['args']} expected={r['expected']} actual={r['actual']} error={r['error']}"
+        )
+    summary = "\n".join(lines)
+
+    user_message = f"""Problem:
+{problem['description']}
+
+Candidate's code:
+{code}
+
+Test results ({'ALL PASSED' if all_passed else 'SOME FAILED'}):
+{summary}
+"""
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=350,
+            system=SUBMIT_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        return "".join(block.text for block in response.content if block.type == "text")
+    except Exception as e:
+        return "Couldn't generate an explanation: " + str(e)
+
+
+@app.route("/api/submit", methods=["POST"])
+def submit_code():
+    if _rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"error": "Too many submissions — wait a bit before trying again."}), 429
+
+    data = request.get_json(force=True)
+    problem_id = str(data.get("problem_id", ""))
+    language = data.get("language", "python")
+    code = data.get("code", "")
+
+    if language != "python":
+        return jsonify({"error": "Real execution currently only supports Python — try Get Hint instead, or switch the language to Python."}), 400
+
+    problem = PROBLEM_DETAILS.get(problem_id)
+    if not problem:
+        return jsonify({"error": "This problem doesn't have executable test cases yet — try Get Hint instead."}), 400
+
+    if not code.strip():
+        return jsonify({"error": "Write some code first."}), 400
+    if len(code) > 20000:
+        return jsonify({"error": "Solution is too long."}), 400
+
+    payload = json.dumps({
+        "code": code,
+        "function_name": problem["functionName"],
+        "tests": [{"args": t["args"]} for t in problem["tests"]],
+    })
+
+    run_kwargs = dict(input=payload, capture_output=True, text=True, timeout=6, env={})
+    if os.name == "posix":
+        run_kwargs["preexec_fn"] = _limit_resources
+
+    try:
+        proc = subprocess.run([sys.executable, "-I", "-S", SANDBOX_RUNNER], **run_kwargs)
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Time limit exceeded — your code took too long to run."})
+
+    stdout = (proc.stdout or "")[-20000:]
+    try:
+        sandbox_result = json.loads(stdout)
+    except ValueError:
+        return jsonify({"error": "The sandbox couldn't run your code.", "detail": (proc.stderr or "")[:2000]})
+
+    if sandbox_result.get("compile_error"):
+        return jsonify({"error": sandbox_result["compile_error"]})
+
+    comparator = problem.get("comparator", "exact")
+    results = []
+    all_passed = True
+    for test, r in zip(problem["tests"], sandbox_result["results"]):
+        passed = r["error"] is None and _values_match(r["actual"], test["expected"], comparator)
+        all_passed = all_passed and passed
+        results.append({
+            "args": test["args"],
+            "expected": test["expected"],
+            "actual": r["actual"],
+            "error": r["error"],
+            "passed": passed,
+        })
+
+    explanation = _get_submit_explanation(problem, code, results, all_passed)
+
+    return jsonify({"results": results, "all_passed": all_passed, "explanation": explanation})
+
+
+FOLLOWUP_SYSTEM_PROMPT = """You are a concise coding interview coach continuing a conversation about a
+LeetCode-style submission you just reviewed. Answer the user's follow-up question directly, referencing
+their code and test results where relevant. Keep answers short (2-5 sentences) unless the question genuinely
+needs more. Don't dump a full rewritten solution unless they explicitly ask you to show working code."""
+
+
+@app.route("/api/followup", methods=["POST"])
+def followup():
+    if _rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"error": "Too many requests — wait a bit before trying again."}), 429
+
+    data = request.get_json(force=True)
+    context = (data.get("context") or "").strip()
+    history = data.get("history") or []
+    question = (data.get("question") or "").strip()
+
+    if not question:
+        return jsonify({"error": "Ask something first."}), 400
+
+    messages = []
+    if context:
+        messages.append({"role": "user", "content": f"Context for this conversation:\n{context[:6000]}"})
+        messages.append({"role": "assistant", "content": "Got it, I have the context."})
+    for turn in history[-10:]:
+        role = turn.get("role")
+        if role in ("user", "assistant"):
+            messages.append({"role": role, "content": str(turn.get("content", ""))[:4000]})
+    messages.append({"role": "user", "content": question[:2000]})
+
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            system=FOLLOWUP_SYSTEM_PROMPT,
+            messages=messages,
+        )
+        reply = "".join(block.text for block in response.content if block.type == "text")
+        return jsonify({"reply": reply})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

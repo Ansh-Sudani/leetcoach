@@ -38,12 +38,24 @@
         <button id="mark-solved-btn" class="btn-ghost" hidden>Mark Solved</button>
       </div>
 
+      <div id="problem-statement" class="problem-statement" hidden>
+        <p id="problem-statement-text"></p>
+        <div id="problem-examples" class="problem-examples"></div>
+      </div>
+
       <details class="details-toggle">
         <summary>Paste full problem statement (optional — improves hint quality)</summary>
-        <textarea id="problem-details" placeholder="Paste the problem description, examples, or constraints here..."></textarea>
+        <textarea id="problem-details-input" placeholder="Paste the problem description, examples, or constraints here..."></textarea>
       </details>
 
       <div class="hint-controls">
+        <label for="language-select">Language</label>
+        <select id="language-select">
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+        </select>
         <label for="hint-level">Hint level</label>
         <select id="hint-level">
           <option value="1">1 — Guiding question</option>
@@ -52,10 +64,12 @@
           <option value="4">4 — Pseudocode structure</option>
         </select>
         <button id="hint-btn" disabled>Get Hint</button>
+        <button id="submit-btn" class="btn-primary" disabled>Submit</button>
       </div>
+      <p id="language-note" class="language-note" hidden>Real execution currently only supports Python — Get Hint still works in any language.</p>
 
       <div id="hint-feed" class="hint-feed">
-        <p class="hint-feed-empty">Pick a problem, write some code, then ask for a hint. Each hint you request shows up here.</p>
+        <p class="hint-feed-empty">Pick a problem, write some code, then ask for a hint or hit Submit to run it against test cases.</p>
       </div>
     </section>
 

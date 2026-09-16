@@ -1,0 +1,395 @@
+{
+  "1": {
+    "functionName": "twoSum",
+    "params": ["nums", "target"],
+    "comparator": "sorted",
+    "description": "Given an array of integers `nums` and an integer `target`, return the indices of the two numbers that add up to `target`. Each input has exactly one valid answer, and you may not use the same element twice. You may return the indices in either order.",
+    "examples": [
+      { "input": "nums = [2, 4, 5, 9], target = 7", "output": "[0, 2]", "explanation": "nums[0] + nums[2] == 2 + 5 == 7" },
+      { "input": "nums = [3, 3], target = 6", "output": "[0, 1]" }
+    ],
+    "starterCode": "def twoSum(nums, target):\n    pass",
+    "tests": [
+      { "args": [[2, 4, 5, 9], 7], "expected": [0, 2] },
+      { "args": [[3, 3], 6], "expected": [0, 1] },
+      { "args": [[1, 2, 3, 4, 5], 9], "expected": [3, 4] }
+    ]
+  },
+  "20": {
+    "functionName": "isValid",
+    "params": ["s"],
+    "comparator": "exact",
+    "description": "Given a string `s` containing only the characters `(`, `)`, `{`, `}`, `[`, `]`, determine whether it is valid. A string is valid if every opening bracket is closed by the same type of bracket, and brackets close in the correct order.",
+    "examples": [
+      { "input": "s = \"()[]{}\"", "output": "true" },
+      { "input": "s = \"([)]\"", "output": "false", "explanation": "The brackets close out of order." }
+    ],
+    "starterCode": "def isValid(s):\n    pass",
+    "tests": [
+      { "args": ["()[]{}"], "expected": true },
+      { "args": ["(]"], "expected": false },
+      { "args": ["([)]"], "expected": false },
+      { "args": ["{[]}"], "expected": true }
+    ]
+  },
+  "121": {
+    "functionName": "maxProfit",
+    "params": ["prices"],
+    "comparator": "exact",
+    "description": "You're given an array `prices` where `prices[i]` is the price of a stock on day `i`. You may complete at most one transaction (buy on one day, sell on a later day). Return the maximum profit achievable, or 0 if no profit is possible.",
+    "examples": [
+      { "input": "prices = [7, 1, 5, 3, 6, 4]", "output": "5", "explanation": "Buy on day 1 (price 1), sell on day 4 (price 6)." },
+      { "input": "prices = [7, 6, 4, 3, 1]", "output": "0", "explanation": "Prices only fall, so no transaction is profitable." }
+    ],
+    "starterCode": "def maxProfit(prices):\n    pass",
+    "tests": [
+      { "args": [[7, 1, 5, 3, 6, 4]], "expected": 5 },
+      { "args": [[7, 6, 4, 3, 1]], "expected": 0 },
+      { "args": [[2, 4, 1, 7]], "expected": 6 }
+    ]
+  },
+  "217": {
+    "functionName": "containsDuplicate",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given an array of integers, return `true` if any value appears at least twice, and `false` if every element is distinct.",
+    "examples": [
+      { "input": "nums = [1, 2, 3, 1]", "output": "true" },
+      { "input": "nums = [1, 2, 3, 4]", "output": "false" }
+    ],
+    "starterCode": "def containsDuplicate(nums):\n    pass",
+    "tests": [
+      { "args": [[1, 2, 3, 1]], "expected": true },
+      { "args": [[1, 2, 3, 4]], "expected": false },
+      { "args": [[]], "expected": false }
+    ]
+  },
+  "53": {
+    "functionName": "maxSubArray",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given an integer array `nums`, find the contiguous subarray (containing at least one number) with the largest sum, and return that sum.",
+    "examples": [
+      { "input": "nums = [-2, 1, -3, 4, -1, 2, 1, -5, 4]", "output": "6", "explanation": "The subarray [4, -1, 2, 1] has the largest sum, 6." }
+    ],
+    "starterCode": "def maxSubArray(nums):\n    pass",
+    "tests": [
+      { "args": [[-2, 1, -3, 4, -1, 2, 1, -5, 4]], "expected": 6 },
+      { "args": [[1]], "expected": 1 },
+      { "args": [[-5, -2, -8, -1]], "expected": -1 }
+    ]
+  },
+  "283": {
+    "functionName": "moveZeroes",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given an integer array `nums`, move all 0's to the end while maintaining the relative order of the non-zero elements. Return the resulting array.",
+    "examples": [
+      { "input": "nums = [0, 1, 0, 3, 12]", "output": "[1, 3, 12, 0, 0]" }
+    ],
+    "starterCode": "def moveZeroes(nums):\n    pass",
+    "tests": [
+      { "args": [[0, 1, 0, 3, 12]], "expected": [1, 3, 12, 0, 0] },
+      { "args": [[0, 0, 1]], "expected": [1, 0, 0] },
+      { "args": [[1, 2, 3]], "expected": [1, 2, 3] }
+    ]
+  },
+  "242": {
+    "functionName": "isAnagram",
+    "params": ["s", "t"],
+    "comparator": "exact",
+    "description": "Given two strings `s` and `t`, return `true` if `t` is an anagram of `s` (uses exactly the same letters with the same counts, possibly reordered), and `false` otherwise.",
+    "examples": [
+      { "input": "s = \"anagram\", t = \"nagaram\"", "output": "true" },
+      { "input": "s = \"rat\", t = \"car\"", "output": "false" }
+    ],
+    "starterCode": "def isAnagram(s, t):\n    pass",
+    "tests": [
+      { "args": ["anagram", "nagaram"], "expected": true },
+      { "args": ["rat", "car"], "expected": false },
+      { "args": ["a", "ab"], "expected": false }
+    ]
+  },
+  "7": {
+    "functionName": "reverse",
+    "params": ["x"],
+    "comparator": "exact",
+    "description": "Given a signed 32-bit integer `x`, return `x` with its digits reversed. If reversing causes the value to fall outside the signed 32-bit range [-2^31, 2^31 - 1], return 0.",
+    "examples": [
+      { "input": "x = 123", "output": "321" },
+      { "input": "x = -123", "output": "-321" }
+    ],
+    "starterCode": "def reverse(x):\n    pass",
+    "tests": [
+      { "args": [123], "expected": 321 },
+      { "args": [-123], "expected": -321 },
+      { "args": [120], "expected": 21 },
+      { "args": [1534236469], "expected": 0 }
+    ]
+  },
+  "9": {
+    "functionName": "isPalindrome",
+    "params": ["x"],
+    "comparator": "exact",
+    "description": "Given an integer `x`, return `true` if `x` reads the same forwards and backwards, and `false` otherwise. Negative numbers are never palindromes.",
+    "examples": [
+      { "input": "x = 121", "output": "true" },
+      { "input": "x = -121", "output": "false" }
+    ],
+    "starterCode": "def isPalindrome(x):\n    pass",
+    "tests": [
+      { "args": [121], "expected": true },
+      { "args": [-121], "expected": false },
+      { "args": [10], "expected": false },
+      { "args": [0], "expected": true }
+    ]
+  },
+  "70": {
+    "functionName": "climbStairs",
+    "params": ["n"],
+    "comparator": "exact",
+    "description": "You're climbing a staircase with `n` steps. Each move you can climb 1 or 2 steps. Return the number of distinct ways to reach the top.",
+    "examples": [
+      { "input": "n = 2", "output": "2", "explanation": "1+1 or 2." },
+      { "input": "n = 3", "output": "3", "explanation": "1+1+1, 1+2, or 2+1." }
+    ],
+    "starterCode": "def climbStairs(n):\n    pass",
+    "tests": [
+      { "args": [2], "expected": 2 },
+      { "args": [3], "expected": 3 },
+      { "args": [5], "expected": 8 }
+    ]
+  },
+  "136": {
+    "functionName": "singleNumber",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given a non-empty array of integers where every element appears exactly twice except for one, find that single element. Try to do it in linear time with constant extra space.",
+    "examples": [
+      { "input": "nums = [2, 2, 1]", "output": "1" }
+    ],
+    "starterCode": "def singleNumber(nums):\n    pass",
+    "tests": [
+      { "args": [[2, 2, 1]], "expected": 1 },
+      { "args": [[4, 1, 2, 1, 2]], "expected": 4 },
+      { "args": [[1]], "expected": 1 }
+    ]
+  },
+  "169": {
+    "functionName": "majorityElement",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given an array `nums` of size `n`, return the majority element — the one that appears more than `n / 2` times. You may assume it always exists.",
+    "examples": [
+      { "input": "nums = [3, 2, 3]", "output": "3" }
+    ],
+    "starterCode": "def majorityElement(nums):\n    pass",
+    "tests": [
+      { "args": [[3, 2, 3]], "expected": 3 },
+      { "args": [[2, 2, 1, 1, 1, 2, 2]], "expected": 2 },
+      { "args": [[1]], "expected": 1 }
+    ]
+  },
+  "268": {
+    "functionName": "missingNumber",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given an array `nums` containing `n` distinct numbers from the range [0, n], return the one number in that range missing from the array.",
+    "examples": [
+      { "input": "nums = [3, 0, 1]", "output": "2" }
+    ],
+    "starterCode": "def missingNumber(nums):\n    pass",
+    "tests": [
+      { "args": [[3, 0, 1]], "expected": 2 },
+      { "args": [[0, 1]], "expected": 2 },
+      { "args": [[9, 6, 4, 2, 3, 5, 7, 0, 1]], "expected": 8 }
+    ]
+  },
+  "66": {
+    "functionName": "plusOne",
+    "params": ["digits"],
+    "comparator": "exact",
+    "description": "Given a non-empty array of digits representing a non-negative integer (most significant digit first), increment the number by one and return the resulting array of digits.",
+    "examples": [
+      { "input": "digits = [1, 2, 3]", "output": "[1, 2, 4]" },
+      { "input": "digits = [9, 9]", "output": "[1, 0, 0]" }
+    ],
+    "starterCode": "def plusOne(digits):\n    pass",
+    "tests": [
+      { "args": [[1, 2, 3]], "expected": [1, 2, 4] },
+      { "args": [[4, 3, 2, 1]], "expected": [4, 3, 2, 2] },
+      { "args": [[9, 9]], "expected": [1, 0, 0] }
+    ]
+  },
+  "238": {
+    "functionName": "productExceptSelf",
+    "params": ["nums"],
+    "comparator": "exact",
+    "description": "Given an integer array `nums`, return an array `answer` where `answer[i]` is the product of all elements of `nums` except `nums[i]`. Do this without using division.",
+    "examples": [
+      { "input": "nums = [1, 2, 3, 4]", "output": "[24, 12, 8, 6]" }
+    ],
+    "starterCode": "def productExceptSelf(nums):\n    pass",
+    "tests": [
+      { "args": [[1, 2, 3, 4]], "expected": [24, 12, 8, 6] },
+      { "args": [[-1, 1, 0, -3, 3]], "expected": [0, 0, 9, 0, 0] },
+      { "args": [[2, 3]], "expected": [3, 2] }
+    ]
+  },
+  "14": {
+    "functionName": "longestCommonPrefix",
+    "params": ["strs"],
+    "comparator": "exact",
+    "description": "Given an array of strings `strs`, return the longest common prefix shared by all of them. If there is no common prefix, return an empty string.",
+    "examples": [
+      { "input": "strs = [\"flower\", \"flow\", \"flight\"]", "output": "\"fl\"" },
+      { "input": "strs = [\"dog\", \"racecar\", \"car\"]", "output": "\"\"" }
+    ],
+    "starterCode": "def longestCommonPrefix(strs):\n    pass",
+    "tests": [
+      { "args": [["flower", "flow", "flight"]], "expected": "fl" },
+      { "args": [["dog", "racecar", "car"]], "expected": "" },
+      { "args": [["interspecies", "interstellar", "interstate"]], "expected": "inters" }
+    ]
+  },
+  "35": {
+    "functionName": "searchInsert",
+    "params": ["nums", "target"],
+    "comparator": "exact",
+    "description": "Given a sorted array of distinct integers `nums` and a value `target`, return the index of `target` if found. Otherwise, return the index where it would be inserted to keep the array sorted.",
+    "examples": [
+      { "input": "nums = [1, 3, 5, 6], target = 5", "output": "2" },
+      { "input": "nums = [1, 3, 5, 6], target = 2", "output": "1" }
+    ],
+    "starterCode": "def searchInsert(nums, target):\n    pass",
+    "tests": [
+      { "args": [[1, 3, 5, 6], 5], "expected": 2 },
+      { "args": [[1, 3, 5, 6], 2], "expected": 1 },
+      { "args": [[1, 3, 5, 6], 7], "expected": 4 },
+      { "args": [[1, 3, 5, 6], 0], "expected": 0 }
+    ]
+  },
+  "704": {
+    "functionName": "search",
+    "params": ["nums", "target"],
+    "comparator": "exact",
+    "description": "Given a sorted array of distinct integers `nums` and a value `target`, return the index of `target` in `nums`, or -1 if it isn't present. Aim for O(log n).",
+    "examples": [
+      { "input": "nums = [-1, 0, 3, 5, 9, 12], target = 9", "output": "4" }
+    ],
+    "starterCode": "def search(nums, target):\n    pass",
+    "tests": [
+      { "args": [[-1, 0, 3, 5, 9, 12], 9], "expected": 4 },
+      { "args": [[-1, 0, 3, 5, 9, 12], 2], "expected": -1 },
+      { "args": [[5], 5], "expected": 0 }
+    ]
+  },
+  "383": {
+    "functionName": "canConstruct",
+    "params": ["ransomNote", "magazine"],
+    "comparator": "exact",
+    "description": "Given two strings `ransomNote` and `magazine`, return `true` if `ransomNote` can be built using the letters from `magazine` (each letter in `magazine` can be used only once), and `false` otherwise.",
+    "examples": [
+      { "input": "ransomNote = \"aa\", magazine = \"aab\"", "output": "true" }
+    ],
+    "starterCode": "def canConstruct(ransomNote, magazine):\n    pass",
+    "tests": [
+      { "args": ["a", "b"], "expected": false },
+      { "args": ["aa", "ab"], "expected": false },
+      { "args": ["aa", "aab"], "expected": true }
+    ]
+  },
+  "387": {
+    "functionName": "firstUniqChar",
+    "params": ["s"],
+    "comparator": "exact",
+    "description": "Given a string `s`, find the index of the first non-repeating character. If none exists, return -1.",
+    "examples": [
+      { "input": "s = \"leetcode\"", "output": "0" },
+      { "input": "s = \"loveleetcode\"", "output": "2" }
+    ],
+    "starterCode": "def firstUniqChar(s):\n    pass",
+    "tests": [
+      { "args": ["leetcode"], "expected": 0 },
+      { "args": ["loveleetcode"], "expected": 2 },
+      { "args": ["aabb"], "expected": -1 }
+    ]
+  },
+  "392": {
+    "functionName": "isSubsequence",
+    "params": ["s", "t"],
+    "comparator": "exact",
+    "description": "Given two strings `s` and `t`, return `true` if `s` is a subsequence of `t` — that is, `s` can be formed by deleting some (or no) characters from `t` without changing the order of the remaining characters.",
+    "examples": [
+      { "input": "s = \"abc\", t = \"ahbgdc\"", "output": "true" },
+      { "input": "s = \"axc\", t = \"ahbgdc\"", "output": "false" }
+    ],
+    "starterCode": "def isSubsequence(s, t):\n    pass",
+    "tests": [
+      { "args": ["abc", "ahbgdc"], "expected": true },
+      { "args": ["axc", "ahbgdc"], "expected": false },
+      { "args": ["", "anything"], "expected": true }
+    ]
+  },
+  "202": {
+    "functionName": "isHappy",
+    "params": ["n"],
+    "comparator": "exact",
+    "description": "A happy number is found by repeatedly replacing a number with the sum of the squares of its digits, until it reaches 1 (happy) or enters a cycle that never reaches 1 (not happy). Return `true` if `n` is happy.",
+    "examples": [
+      { "input": "n = 19", "output": "true", "explanation": "19 -> 82 -> 68 -> 100 -> 1" }
+    ],
+    "starterCode": "def isHappy(n):\n    pass",
+    "tests": [
+      { "args": [19], "expected": true },
+      { "args": [2], "expected": false },
+      { "args": [1], "expected": true }
+    ]
+  },
+  "461": {
+    "functionName": "hammingDistance",
+    "params": ["x", "y"],
+    "comparator": "exact",
+    "description": "The Hamming distance between two integers is the number of bit positions at which they differ. Given integers `x` and `y`, return their Hamming distance.",
+    "examples": [
+      { "input": "x = 1, y = 4", "output": "2", "explanation": "1 = 001, 4 = 100 — they differ in 2 bit positions." }
+    ],
+    "starterCode": "def hammingDistance(x, y):\n    pass",
+    "tests": [
+      { "args": [1, 4], "expected": 2 },
+      { "args": [3, 1], "expected": 1 },
+      { "args": [0, 0], "expected": 0 }
+    ]
+  },
+  "13": {
+    "functionName": "romanToInt",
+    "params": ["s"],
+    "comparator": "exact",
+    "description": "Given a roman numeral string `s`, convert it to an integer. Roman numerals use the symbols I, V, X, L, C, D, M, including subtractive pairs like IV (4) and IX (9).",
+    "examples": [
+      { "input": "s = \"LVIII\"", "output": "58" },
+      { "input": "s = \"MCMXCIV\"", "output": "1994" }
+    ],
+    "starterCode": "def romanToInt(s):\n    pass",
+    "tests": [
+      { "args": ["III"], "expected": 3 },
+      { "args": ["LVIII"], "expected": 58 },
+      { "args": ["MCMXCIV"], "expected": 1994 }
+    ]
+  },
+  "349": {
+    "functionName": "intersection",
+    "params": ["nums1", "nums2"],
+    "comparator": "set",
+    "description": "Given two integer arrays `nums1` and `nums2`, return an array of their unique intersecting elements. Each element in the result must be unique; the result may be returned in any order.",
+    "examples": [
+      { "input": "nums1 = [1, 2, 2, 1], nums2 = [2, 2]", "output": "[2]" }
+    ],
+    "starterCode": "def intersection(nums1, nums2):\n    pass",
+    "tests": [
+      { "args": [[1, 2, 2, 1], [2, 2]], "expected": [2] },
+      { "args": [[4, 9, 5], [9, 4, 9, 8, 4]], "expected": [4, 9] },
+      { "args": [[1, 2], [3, 4]], "expected": [] }
+    ]
+  }
+}
