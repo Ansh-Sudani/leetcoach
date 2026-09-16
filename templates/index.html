@@ -7,52 +7,73 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <div class="app">
-    <header>
-      <h1>LeetCoach</h1>
-      <p class="subtitle">A Socratic hint engine for interview prep — no spoilers, just nudges.</p>
-    </header>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="28" height="28" rx="7" fill="#ffa116"/>
+        <path d="M10.5 8L6.5 14L10.5 20" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M17.5 8L21.5 14L17.5 20" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand-name">LeetCoach</span>
+    </div>
+    <p class="brand-tagline">Socratic hints. No spoilers.</p>
+  </header>
 
-    <main class="layout">
-      <section class="panel">
-        <h2>Problem</h2>
-        <textarea id="problem-input" placeholder="Paste the problem statement here..."></textarea>
+  <main class="workspace">
+    <section class="pane problem-pane">
+      <div class="combobox" id="problem-combobox">
+        <input
+          id="problem-search"
+          type="text"
+          placeholder="Search problems by number or name..."
+          autocomplete="off"
+        />
+        <ul id="problem-options" class="combobox-options" hidden></ul>
+      </div>
 
-        <h2>Your code / thoughts</h2>
-        <textarea id="code-input" placeholder="Paste your current attempt, or just describe your thinking..."></textarea>
+      <div id="selected-problem" class="selected-problem" hidden>
+        <span id="selected-problem-num" class="problem-num"></span>
+        <span id="selected-problem-title" class="problem-title"></span>
+        <span id="selected-problem-difficulty" class="badge"></span>
+        <button id="mark-solved-btn" class="btn-ghost" hidden>Mark Solved</button>
+      </div>
 
-        <div class="hint-controls">
-          <label for="hint-level">Hint level</label>
-          <select id="hint-level">
-            <option value="1">1 — Guiding question</option>
-            <option value="2">2 — Name the pattern</option>
-            <option value="3">3 — Apply it to this problem</option>
-            <option value="4">4 — Pseudocode structure</option>
-          </select>
-          <button id="hint-btn">Get Hint</button>
-        </div>
+      <details class="details-toggle">
+        <summary>Paste full problem statement (optional — improves hint quality)</summary>
+        <textarea id="problem-details" placeholder="Paste the problem description, examples, or constraints here..."></textarea>
+      </details>
 
-        <div id="hint-output" class="hint-output" hidden>
-          <strong>Hint:</strong>
-          <p id="hint-text"></p>
-        </div>
-      </section>
+      <div class="hint-controls">
+        <label for="hint-level">Hint level</label>
+        <select id="hint-level">
+          <option value="1">1 — Guiding question</option>
+          <option value="2">2 — Name the pattern</option>
+          <option value="3">3 — Apply it to this problem</option>
+          <option value="4">4 — Pseudocode structure</option>
+        </select>
+        <button id="hint-btn" disabled>Get Hint</button>
+      </div>
 
-      <section class="panel tracker">
-        <h2>Tracked Problems</h2>
-        <form id="add-problem-form">
-          <input id="new-title" type="text" placeholder="Problem title (e.g. Two Sum)" required />
-          <select id="new-difficulty">
-            <option>Easy</option>
-            <option selected>Medium</option>
-            <option>Hard</option>
-          </select>
-          <button type="submit">Add</button>
-        </form>
-        <ul id="problem-list"></ul>
-      </section>
-    </main>
-  </div>
+      <div id="hint-feed" class="hint-feed">
+        <p class="hint-feed-empty">Pick a problem, write some code, then ask for a hint. Each hint you request shows up here.</p>
+      </div>
+    </section>
+
+    <section class="pane editor-pane">
+      <div class="editor-header">
+        <span>Solution Draft</span>
+        <span class="editor-note">Scratch pad only — nothing runs or submits</span>
+      </div>
+      <textarea
+        id="code-input"
+        class="code-editor"
+        spellcheck="false"
+        placeholder="def solve():
+    # start writing your draft here
+    pass"
+      ></textarea>
+    </section>
+  </main>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
