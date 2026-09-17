@@ -61,15 +61,13 @@
         </select>
         <label for="hint-level">Hint level</label>
         <select id="hint-level">
-          <option value="1">1 — Guiding question</option>
-          <option value="2">2 — Name the pattern</option>
-          <option value="3">3 — Apply it to this problem</option>
-          <option value="4">4 — Pseudocode structure</option>
+          <option value="1">1 → Guiding question</option>
+          <option value="2">2 → Name the pattern</option>
+          <option value="3">3 → Apply it to this problem</option>
+          <option value="4">4 → Pseudocode structure</option>
         </select>
         <button id="hint-btn" disabled>Get Hint</button>
-        <button id="submit-btn" class="btn-primary" disabled>Submit</button>
       </div>
-      <p id="language-note" class="language-note" hidden>Real execution currently only supports Python — Get Hint still works in any language.</p>
 
       <div id="hint-feed" class="hint-feed">
         <p class="hint-feed-empty">Pick a problem, write some code, then ask for a hint or hit Submit to run it against test cases.</p>
@@ -79,7 +77,10 @@
     <section class="pane editor-pane">
       <div class="editor-header">
         <span>Solution Draft</span>
-        <span class="editor-note">Scratch pad only — nothing runs or submits</span>
+        <div class="editor-header-actions">
+          <span id="language-note" class="language-note" hidden>Python only, for now</span>
+          <button id="submit-btn" class="btn-primary" disabled>Submit</button>
+        </div>
       </div>
       <textarea
         id="code-input"

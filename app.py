@@ -148,16 +148,14 @@ def _values_match(actual, expected, comparator):
     return actual == expected
 
 
-SUBMIT_SYSTEM_PROMPT = """You are a concise, encouraging coding interview coach reviewing a candidate's
-LeetCode-style submission. You are given the problem, their code, and the results of running it against
-test cases.
+SUBMIT_SYSTEM_PROMPT = """You are a concise, encouraging coding interview coach helping a candidate whose
+LeetCode-style submission just failed some test cases. You are given the problem, their code, and the
+test results.
 
-Write a SHORT (3-6 sentences) breakdown:
-- If it passed: briefly note the approach's time/space complexity and one thing worth double-checking
-  (an edge case, a readability nit) — don't just say "looks good."
-- If it failed: name the likely root cause (off-by-one, wrong base case, unhandled edge case, etc.) by
-  reasoning about the specific failing test case(s), but do NOT rewrite their solution or give working code.
-Keep it tight — no walls of text, no restating the whole problem back to them.
+Write a SHORT (3-6 sentences) breakdown: name the likely root cause (off-by-one, wrong base case,
+unhandled edge case, etc.) by reasoning about the specific failing test case(s), but do NOT rewrite
+their solution or give working code. Keep it tight — no walls of text, no restating the whole problem
+back to them.
 """
 
 
@@ -251,7 +249,7 @@ def submit_code():
             "passed": passed,
         })
 
-    explanation = _get_submit_explanation(problem, code, results, all_passed)
+    explanation = None if all_passed else _get_submit_explanation(problem, code, results, all_passed)
 
     return jsonify({"results": results, "all_passed": all_passed, "explanation": explanation})
 

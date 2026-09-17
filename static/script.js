@@ -38,7 +38,11 @@ const editor = CodeMirror.fromTextArea(codeInput, {
   indentUnit: 4,
   tabSize: 4,
   indentWithTabs: false,
-  extraKeys: { Tab: (cm) => cm.replaceSelection("    ") },
+  smartIndent: false,
+  extraKeys: {
+    Tab: (cm) => cm.replaceSelection("    "),
+    Enter: (cm) => cm.replaceSelection("\n"),
+  },
   placeholder: LANGUAGE_PLACEHOLDERS.python,
 });
 
@@ -378,7 +382,7 @@ function appendSubmitCard(problemTitle, code, data) {
 
   const passCount = data.results.filter((r) => r.passed).length;
   const verdictText = data.all_passed
-    ? `✅ All tests passed (${passCount}/${data.results.length})`
+    ? `✓ Correct — ${passCount}/${data.results.length} tests passed`
     : `❌ ${passCount}/${data.results.length} tests passed`;
 
   const testsHtml = data.results
@@ -388,9 +392,9 @@ function appendSubmitCard(problemTitle, code, data) {
     })
     .join("");
 
-  card.innerHTML = `
-    <span class="submit-verdict">${verdictText}</span>
-    <div class="test-results">${testsHtml}</div>
+  const explanationBlock = data.all_passed
+    ? ""
+    : `
     <div class="submit-explanation"></div>
     <button class="followup-toggle">Ask a follow-up ↓</button>
     <div class="followup-chat" hidden>
@@ -401,12 +405,20 @@ function appendSubmitCard(problemTitle, code, data) {
       </div>
     </div>
   `;
-  card.querySelector(".submit-explanation").innerHTML = renderInline(data.explanation);
+
+  card.innerHTML = `
+    <span class="submit-verdict">${verdictText}</span>
+    <div class="test-results">${testsHtml}</div>
+    ${explanationBlock}
+  `;
 
   hintFeed.appendChild(card);
   hintFeed.scrollTop = hintFeed.scrollHeight;
 
-  wireFollowup(card, buildSubmitContext(problemTitle, code, data));
+  if (!data.all_passed) {
+    card.querySelector(".submit-explanation").innerHTML = renderInline(data.explanation);
+    wireFollowup(card, buildSubmitContext(problemTitle, code, data));
+  }
 }
 
 async function submitCode() {
