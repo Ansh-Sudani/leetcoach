@@ -24,6 +24,24 @@ const LANGUAGE_PLACEHOLDERS = {
   cpp: "class Solution {\npublic:\n    // start writing your draft here\n};",
 };
 
+const CM_MODES = {
+  python: "python",
+  javascript: "javascript",
+  java: "text/x-java",
+  cpp: "text/x-c++src",
+};
+
+const editor = CodeMirror.fromTextArea(codeInput, {
+  mode: CM_MODES.python,
+  theme: "material-darker",
+  lineNumbers: true,
+  indentUnit: 4,
+  tabSize: 4,
+  indentWithTabs: false,
+  extraKeys: { Tab: (cm) => cm.replaceSelection("    ") },
+  placeholder: LANGUAGE_PLACEHOLDERS.python,
+});
+
 let allProblems = [];
 let problemDetails = {};
 let activeIndex = -1;
@@ -157,15 +175,17 @@ function renderProblemStatement(details) {
 
 function loadDraftForCurrent() {
   const lang = languageSelect.value;
+  editor.setOption("mode", CM_MODES[lang] || "python");
+  editor.setOption("placeholder", LANGUAGE_PLACEHOLDERS[lang] || "");
+
   const saved = localStorage.getItem(draftKey(current.id, lang));
   if (saved !== null) {
-    codeInput.value = saved;
+    editor.setValue(saved);
   } else if (lang === "python" && current.details) {
-    codeInput.value = current.details.starterCode;
+    editor.setValue(current.details.starterCode);
   } else {
-    codeInput.value = "";
+    editor.setValue("");
   }
-  codeInput.placeholder = LANGUAGE_PLACEHOLDERS[lang] || "";
 }
 
 function updateSubmitAvailability() {
@@ -217,23 +237,17 @@ solveBtn.addEventListener("click", async () => {
 });
 
 languageSelect.addEventListener("change", () => {
-  if (current) loadDraftForCurrent();
-  else codeInput.placeholder = LANGUAGE_PLACEHOLDERS[languageSelect.value] || "";
+  if (current) {
+    loadDraftForCurrent();
+  } else {
+    editor.setOption("mode", CM_MODES[languageSelect.value] || "python");
+    editor.setOption("placeholder", LANGUAGE_PLACEHOLDERS[languageSelect.value] || "");
+  }
   updateSubmitAvailability();
 });
 
-codeInput.addEventListener("input", () => {
-  if (current) localStorage.setItem(draftKey(current.id, languageSelect.value), codeInput.value);
-});
-
-codeInput.addEventListener("keydown", (e) => {
-  if (e.key === "Tab") {
-    e.preventDefault();
-    const start = codeInput.selectionStart;
-    const end = codeInput.selectionEnd;
-    codeInput.value = codeInput.value.slice(0, start) + "    " + codeInput.value.slice(end);
-    codeInput.selectionStart = codeInput.selectionEnd = start + 4;
-  }
+editor.on("change", () => {
+  if (current) localStorage.setItem(draftKey(current.id, languageSelect.value), editor.getValue());
 });
 
 function clearEmptyFeedNotice() {
@@ -262,7 +276,7 @@ async function getHint() {
     : current.details
     ? `LeetCode-style #${current.id}: ${current.title} (${current.difficulty})\n${current.details.description}`
     : `LeetCode #${current.id}: ${current.title} (${current.difficulty})`;
-  const code = codeInput.value;
+  const code = editor.getValue();
   const hintLevel = hintLevelSelect.value;
 
   hintBtn.disabled = true;
@@ -398,7 +412,7 @@ function appendSubmitCard(problemTitle, code, data) {
 async function submitCode() {
   if (!current) return;
 
-  const code = codeInput.value;
+  const code = editor.getValue();
   submitBtn.disabled = true;
   submitBtn.textContent = "Running...";
 
@@ -425,5 +439,4 @@ async function submitCode() {
 hintBtn.addEventListener("click", getHint);
 submitBtn.addEventListener("click", submitCode);
 
-codeInput.placeholder = LANGUAGE_PLACEHOLDERS.python;
 loadProblems();

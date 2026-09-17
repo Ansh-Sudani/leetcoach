@@ -509,18 +509,24 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 11.5px;
 }
 
-.code-editor {
+.code-editor { display: none; }
+
+.CodeMirror {
   flex: 1;
-  width: 100%;
-  border: none;
-  resize: none;
+  height: auto;
   background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 16px;
   font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 13.5px;
   line-height: 1.6;
-  tab-size: 4;
 }
 
-.code-editor:focus { outline: none; }
+.CodeMirror-gutters {
+  background: #1e1e1e;
+  border-right: 1px solid var(--border);
+}
+
+.CodeMirror-linenumber {
+  color: #545862;
+}
+
+.CodeMirror-placeholder { color: #6b6b6b !important; }
