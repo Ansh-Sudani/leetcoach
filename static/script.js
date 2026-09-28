@@ -11,7 +11,7 @@ const problemExamplesEl = document.getElementById("problem-examples");
 const detailsInput = document.getElementById("problem-details-input");
 const languageSelect = document.getElementById("language-select");
 const languageNote = document.getElementById("language-note");
-const hintLevelSelect = document.getElementById("hint-level");
+const hintProgressEl = document.getElementById("hint-progress");
 const hintBtn = document.getElementById("hint-btn");
 const submitBtn = document.getElementById("submit-btn");
 const hintFeed = document.getElementById("hint-feed");
@@ -49,7 +49,15 @@ const editor = CodeMirror.fromTextArea(codeInput, {
 let allProblems = [];
 let problemDetails = {};
 let activeIndex = -1;
-let current = null; // { id, title, difficulty, trackedId, solved, details }
+let current = null; // { id, title, difficulty, trackedId, solved, details, hintsUsed }
+
+const MAX_HINTS = 4;
+const HINT_LABELS = {
+  1: "Nudge",
+  2: "Name the approach",
+  3: "Apply it here",
+  4: "Outline the steps",
+};
 
 function difficultyClass(difficulty) {
   return (difficulty || "").toLowerCase();
@@ -157,8 +165,7 @@ async function findOrCreateTracked(title, difficulty) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, difficulty }),
   });
-  const created = await createRes.json();
-  return { id: created.id, title, difficulty, status: "in_progress" };
+  return createRes.json();
 }
 
 function renderProblemStatement(details) {
@@ -211,15 +218,48 @@ async function selectProblem(p) {
   const details = problemDetails[String(p.id)] || null;
   renderProblemStatement(details);
 
-  hintBtn.disabled = false;
+  hintBtn.disabled = true;
+  resetFeed();
 
   const tracked = await findOrCreateTracked(p.title, p.difficulty);
-  const solved = tracked.status === "solved";
+  const full = await (await fetch(`/api/problems/${tracked.id}`)).json();
+  const solved = full.status === "solved";
 
-  current = { id: p.id, title: p.title, difficulty: p.difficulty, trackedId: tracked.id, solved, details };
+  current = {
+    id: p.id,
+    title: p.title,
+    difficulty: p.difficulty,
+    trackedId: tracked.id,
+    solved,
+    details,
+    hintsUsed: (full.hints || []).length,
+  };
+  if (!details && full.statement) detailsInput.value = full.statement;
+  (full.hints || []).forEach((text, i) => appendHintCard({ level: i + 1, text }));
   loadDraftForCurrent();
   updateSubmitAvailability();
   updateSolveButton();
+  updateHintButton();
+}
+
+function resetFeed() {
+  hintFeed.innerHTML =
+    '<p class="hint-feed-empty">Write some code, then unlock hints one at a time or hit Submit to run it against test cases.</p>';
+  detailsInput.value = "";
+}
+
+function updateHintButton() {
+  if (!current) return;
+  const next = current.hintsUsed + 1;
+  hintProgressEl.hidden = false;
+  hintProgressEl.textContent = `${current.hintsUsed}/${MAX_HINTS} hints used`;
+  if (next > MAX_HINTS) {
+    hintBtn.disabled = true;
+    hintBtn.textContent = "All hints used";
+  } else {
+    hintBtn.disabled = false;
+    hintBtn.textContent = `Hint ${next}: ${HINT_LABELS[next]}`;
+  }
 }
 
 function updateSolveButton() {
@@ -264,7 +304,7 @@ function appendHintCard({ level, text, isError }) {
   const card = document.createElement("div");
   card.className = "hint-card" + (isError ? " error" : "");
   card.innerHTML = `
-    <div class="hint-card-meta"><span>${isError ? "Error" : "Hint level " + level}</span></div>
+    <div class="hint-card-meta"><span>${isError ? "Error" : `Hint ${level} · ${HINT_LABELS[level] || ""}`}</span></div>
     <p></p>
   `;
   card.querySelector("p").innerHTML = renderInline(text);
@@ -273,38 +313,35 @@ function appendHintCard({ level, text, isError }) {
 }
 
 async function getHint() {
-  if (!current) return;
+  if (!current || current.hintsUsed >= MAX_HINTS) return;
 
-  const problemText = detailsInput.value.trim()
+  const statement = detailsInput.value.trim()
     ? detailsInput.value.trim()
     : current.details
     ? `LeetCode-style #${current.id}: ${current.title} (${current.difficulty})\n${current.details.description}`
     : `LeetCode #${current.id}: ${current.title} (${current.difficulty})`;
   const code = editor.getValue();
-  const hintLevel = hintLevelSelect.value;
+  const level = current.hintsUsed + 1;
+  const problem = current;
 
   hintBtn.disabled = true;
   hintBtn.textContent = "Thinking...";
 
   try {
-    const res = await fetch("/api/hint", {
+    const res = await fetch(`/api/problems/${problem.trackedId}/hint`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ problem: problemText, code, hint_level: hintLevel }),
+      body: JSON.stringify({ statement, code, level }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    appendHintCard({ level: data.hint_level, text: data.hint });
-
-    if (current.trackedId) {
-      fetch(`/api/problems/${current.trackedId}/hint_used`, { method: "POST" }).catch(() => {});
-    }
+    problem.hintsUsed = data.hints_used;
+    if (problem === current) appendHintCard({ level: data.level, text: data.hint });
   } catch (err) {
-    appendHintCard({ text: "Couldn't get a hint: " + err.message, isError: true });
+    if (problem === current) appendHintCard({ text: "Couldn't get a hint: " + err.message, isError: true });
   } finally {
-    hintBtn.disabled = false;
-    hintBtn.textContent = "Get Hint";
+    if (problem === current) updateHintButton();
   }
 }
 
