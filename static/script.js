@@ -13,6 +13,7 @@ const languageSelect = document.getElementById("language-select");
 const languageNote = document.getElementById("language-note");
 const hintProgressEl = document.getElementById("hint-progress");
 const hintBtn = document.getElementById("hint-btn");
+const resetHintsBtn = document.getElementById("reset-hints-btn");
 const submitBtn = document.getElementById("submit-btn");
 const hintFeed = document.getElementById("hint-feed");
 const codeInput = document.getElementById("code-input");
@@ -256,11 +257,32 @@ function updateHintButton() {
   if (next > MAX_HINTS) {
     hintBtn.disabled = true;
     hintBtn.textContent = "All hints used";
+    resetHintsBtn.hidden = false;
   } else {
     hintBtn.disabled = false;
     hintBtn.textContent = `Hint ${next}: ${HINT_LABELS[next]}`;
+    resetHintsBtn.hidden = true;
   }
 }
+
+async function resetHints() {
+  if (!current) return;
+  const problem = current;
+  resetHintsBtn.disabled = true;
+  try {
+    await fetch(`/api/problems/${problem.trackedId}/hints/reset`, { method: "POST" });
+    if (problem === current) {
+      current.hintsUsed = 0;
+      hintFeed.querySelectorAll(".hint-card").forEach((card) => card.remove());
+      if (!hintFeed.querySelector(".hint-card, .submit-card")) resetFeed();
+      updateHintButton();
+    }
+  } finally {
+    resetHintsBtn.disabled = false;
+  }
+}
+
+resetHintsBtn.addEventListener("click", resetHints);
 
 function updateSolveButton() {
   solveBtn.hidden = false;

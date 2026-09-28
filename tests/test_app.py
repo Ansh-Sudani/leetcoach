@@ -72,6 +72,22 @@ def test_hints_unlock_in_order_and_stop_at_four(client):
     assert ask_hint(client, pid, 5).status_code == 409
 
 
+def test_hints_can_be_reset_after_using_all_four(client):
+    pid = make_problem(client).get_json()["id"]
+    for level in range(1, 5):
+        ask_hint(client, pid, level, code="x = 1")
+    assert ask_hint(client, pid, 5).status_code == 409
+
+    res = client.post(f"/api/problems/{pid}/hints/reset")
+    assert res.status_code == 200
+    assert res.get_json()["hints_used"] == 0
+    assert client.get(f"/api/problems/{pid}").get_json()["hints"] == []
+
+    again = ask_hint(client, pid, 1, code="x = 1")
+    assert again.status_code == 200
+    assert again.get_json()["hint"] == "hint for level 1"
+
+
 def test_hints_are_saved_with_the_problem(client):
     pid = make_problem(client).get_json()["id"]
     ask_hint(client, pid, 1, code="def f(): pass")

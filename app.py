@@ -516,6 +516,21 @@ def request_hint(problem_id):
     return jsonify({"hint": hint, "level": next_level, "hints_used": len(hints)})
 
 
+@app.route("/api/problems/<int:problem_id>/hints/reset", methods=["POST"])
+def reset_hints(problem_id):
+    row = fetch_problem(problem_id)
+    if row is None:
+        return jsonify({"error": "Problem not found."}), 404
+
+    db = get_db()
+    db.execute(
+        "UPDATE problems SET hints = '[]', updated_at = ? WHERE id = ?",
+        (now(), problem_id),
+    )
+    db.commit()
+    return jsonify({"ok": True, "hints_used": 0})
+
+
 @app.route("/api/problems/<int:problem_id>/solve", methods=["POST"])
 def mark_solved(problem_id):
     if fetch_problem(problem_id) is None:
