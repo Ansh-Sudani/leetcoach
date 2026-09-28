@@ -146,10 +146,43 @@ def test_submit_runs_code_against_tests(client):
     res = client.post("/api/submit", json={"problem_id": "1", "language": "python", "code": code})
     data = res.get_json()
     assert data["all_passed"] is True
-    assert data["explanation"] is None
+    assert data["diagnosis"] is None
 
 
 def test_submit_blocks_disallowed_imports(client):
     code = "import os\ndef twoSum(nums, target):\n    return []\n"
     res = client.post("/api/submit", json={"problem_id": "1", "language": "python", "code": code})
     assert "not allowed" in res.get_json()["error"]
+
+
+class _FakeToolUseBlock:
+    type = "tool_use"
+    name = "report_diagnosis"
+
+    def __init__(self, input_):
+        self.input = input_
+
+
+class _FakeDiagnosisResponse:
+    def __init__(self, input_):
+        self.content = [_FakeToolUseBlock(input_)]
+
+
+def test_submit_failure_returns_structured_diagnosis(client, monkeypatch):
+    fake_input = {
+        "root_cause": "Your loop returns before checking every pair.",
+        "notes": [
+            {"type": "bug", "text": "You return on the first iteration regardless of match."},
+            {"type": "edge_case", "text": "The third test needs indices 3 and 4, which you never reach."},
+            {"type": "approach", "text": "A hash map from value to index would let you check in one pass."},
+        ],
+    }
+    monkeypatch.setattr(
+        coach.client.messages, "create", lambda **kwargs: _FakeDiagnosisResponse(fake_input)
+    )
+    code = "def twoSum(nums, target):\n    return [0, 1]\n"
+    res = client.post("/api/submit", json={"problem_id": "1", "language": "python", "code": code})
+    data = res.get_json()
+    assert data["all_passed"] is False
+    assert data["diagnosis"]["root_cause"] == fake_input["root_cause"]
+    assert [n["type"] for n in data["diagnosis"]["notes"]] == ["bug", "edge_case", "approach"]
