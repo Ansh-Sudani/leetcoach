@@ -13,6 +13,7 @@ const languageSelect = document.getElementById("language-select");
 const languageNote = document.getElementById("language-note");
 const hintProgressEl = document.getElementById("hint-progress");
 const hintBtn = document.getElementById("hint-btn");
+const resetHintsBtn = document.getElementById("reset-hints-btn");
 const submitBtn = document.getElementById("submit-btn");
 const hintFeed = document.getElementById("hint-feed");
 const codeInput = document.getElementById("code-input");
@@ -256,11 +257,32 @@ function updateHintButton() {
   if (next > MAX_HINTS) {
     hintBtn.disabled = true;
     hintBtn.textContent = "All hints used";
+    resetHintsBtn.hidden = false;
   } else {
     hintBtn.disabled = false;
     hintBtn.textContent = `Hint ${next}: ${HINT_LABELS[next]}`;
+    resetHintsBtn.hidden = true;
   }
 }
+
+async function resetHints() {
+  if (!current) return;
+  const problem = current;
+  resetHintsBtn.disabled = true;
+  try {
+    await fetch(`/api/problems/${problem.trackedId}/hints/reset`, { method: "POST" });
+    if (problem === current) {
+      current.hintsUsed = 0;
+      hintFeed.querySelectorAll(".hint-card").forEach((card) => card.remove());
+      if (!hintFeed.querySelector(".hint-card, .submit-card")) resetFeed();
+      updateHintButton();
+    }
+  } finally {
+    resetHintsBtn.disabled = false;
+  }
+}
+
+resetHintsBtn.addEventListener("click", resetHints);
 
 function updateSolveButton() {
   solveBtn.hidden = false;
@@ -351,11 +373,24 @@ function formatArgs(args, params) {
     .join(", ");
 }
 
+const DIAGNOSIS_LABELS = {
+  bug: "Bug",
+  edge_case: "Edge case",
+  approach: "Try this",
+};
+
+function diagnosisToText(diagnosis) {
+  const noteLines = (diagnosis.notes || []).map(
+    (n) => `${DIAGNOSIS_LABELS[n.type] || "Note"}: ${n.text}`
+  );
+  return `Likely cause: ${diagnosis.root_cause}\n${noteLines.join("\n")}`;
+}
+
 function buildSubmitContext(problemTitle, code, data) {
   const lines = data.results.map(
     (r) => `${r.passed ? "PASS" : "FAIL"} expected=${JSON.stringify(r.expected)} actual=${JSON.stringify(r.actual)}${r.error ? " error=" + r.error : ""}`
   );
-  return `Problem: ${problemTitle}\n\nCode:\n${code}\n\nTest results:\n${lines.join("\n")}\n\nMy explanation to you: ${data.explanation}`;
+  return `Problem: ${problemTitle}\n\nCode:\n${code}\n\nTest results:\n${lines.join("\n")}\n\nMy diagnosis to you:\n${diagnosisToText(data.diagnosis)}`;
 }
 
 function appendFollowupMessage(container, role, text) {
@@ -432,7 +467,7 @@ function appendSubmitCard(problemTitle, code, data) {
   const explanationBlock = data.all_passed
     ? ""
     : `
-    <div class="submit-explanation"></div>
+    <div class="diagnosis"></div>
     <button class="followup-toggle">Ask a follow-up ↓</button>
     <div class="followup-chat" hidden>
       <div class="followup-messages"></div>
@@ -453,9 +488,29 @@ function appendSubmitCard(problemTitle, code, data) {
   hintFeed.scrollTop = hintFeed.scrollHeight;
 
   if (!data.all_passed) {
-    card.querySelector(".submit-explanation").innerHTML = renderInline(data.explanation);
+    renderDiagnosis(card.querySelector(".diagnosis"), data.diagnosis);
     wireFollowup(card, buildSubmitContext(problemTitle, code, data));
   }
+}
+
+function renderDiagnosis(container, diagnosis) {
+  if (!diagnosis) return;
+  const rootRow = document.createElement("div");
+  rootRow.className = "diagnosis-root";
+  rootRow.innerHTML = `<span class="diagnosis-root-label">Likely cause</span>${renderInline(diagnosis.root_cause || "")}`;
+  container.appendChild(rootRow);
+
+  (diagnosis.notes || []).forEach((note) => {
+    const type = ["bug", "edge_case", "approach"].includes(note.type) ? note.type : "bug";
+    const row = document.createElement("div");
+    row.className = `diagnosis-note diagnosis-${type.replace("_", "-")}`;
+    row.innerHTML = `
+      <span class="diagnosis-tag">${DIAGNOSIS_LABELS[type]}</span>
+      <span class="diagnosis-arrow">&#8594;</span>
+      <span class="diagnosis-text">${renderInline(note.text)}</span>
+    `;
+    container.appendChild(row);
+  });
 }
 
 async function submitCode() {
