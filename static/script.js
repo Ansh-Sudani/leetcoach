@@ -35,6 +35,16 @@ const codeInput = document.getElementById("code-input");
   splash.addEventListener("click", () => { clearTimeout(t); finish(); });
 })();
 
+// ---------- Light / dark toggle ----------
+document.getElementById("theme-btn").addEventListener("click", () => {
+  const root = document.documentElement;
+  const current = root.getAttribute("data-theme") ||
+    (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = current === "dark" ? "light" : "dark";
+  root.setAttribute("data-theme", next);
+  try { localStorage.setItem("leetcoach_theme", next); } catch (e) {}
+});
+
 // ---------- Anonymous per-browser id, so progress is yours ----------
 function getClientId() {
   let id = null;
