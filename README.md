@@ -28,27 +28,12 @@ python app.py
 
 Visit `http://localhost:5000`.
 
-## Deploy (Railway — easiest free option)
+## Deploy (Vercel + Neon, free)
 
-1. Push this folder to a GitHub repo.
-2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub repo.
-3. Add an environment variable: `ANTHROPIC_API_KEY` = your key.
-4. Railway auto-detects Python. Set the start command to:
-   ```
-   gunicorn app:app
-   ```
-5. Deploy. You'll get a live `.up.railway.app` URL — that's your resume link.
+1. On [vercel.com](https://vercel.com): **Add New → Project**, import this repo. Framework preset: **Other**. Deploy.
+2. In the project: **Storage → Create Database → Neon** (free), connect it to the project.
+   This sets `DATABASE_URL` automatically.
+3. **Settings → Environment Variables**: add `ANTHROPIC_API_KEY`.
+4. **Deployments → Redeploy** so the new variables load.
 
-## Next steps to make this even stronger
-
-- [ ] Add difficulty-aware hinting (adjust tone/depth based on Easy/Medium/Hard)
-- [ ] Track hint count per problem and show a "hints used" stat on your profile
-- [ ] Add a simple auth layer if you want multi-user support
-- [ ] Write a short blog post / README case study on the prompt design decisions
-- [ ] Add tests for the API endpoints
-
-## Resume bullet (draft)
-
-> Built and deployed LeetCoach, a full-stack interview-prep tool (Flask, SQLite,
-> Anthropic API) that uses a graduated Socratic hint system to guide users toward
-> solutions without revealing them, with persistent progress tracking.
+Locally, with no `DATABASE_URL` set, the app falls back to SQLite (`coach.db`).

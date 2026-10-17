@@ -4,92 +4,107 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LeetCoach</title>
+  <meta name="description" content="LeetCoach: a LeetCode-style practice platform with an AI coach built in." />
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="28" height="28" rx="7" fill="#ffa116"/>
-        <path d="M10.5 8L6.5 14L10.5 20" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M17.5 8L21.5 14L17.5 20" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <span class="brand-name">LeetCoach</span>
+<body class="is-loading">
+
+  <!-- Intro: the tree grows, then the app slides in -->
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="splash-inner">
+      {% with uid="s", cls="splash-mark" %}{% include "partials/logo.html" %}{% endwith %}
+      <div class="splash-word"><span>Leet</span><span class="accent">Coach</span></div>
     </div>
-    <p class="brand-tagline">Socratic hints. No spoilers.</p>
+  </div>
+
+  <header class="topbar">
+    <a class="brand" href="/">
+      {% with uid="h", cls="brand-mark" %}{% include "partials/logo.html" %}{% endwith %}
+      <span class="brand-name">Leet<span class="accent">Coach</span></span>
+    </a>
+    <p class="brand-tagline">Practice live. Get coached as you go.</p>
   </header>
 
   <main class="workspace">
     <section class="pane problem-pane">
-      <div class="combobox" id="problem-combobox">
-        <input
-          id="problem-search"
-          type="text"
-          placeholder="Search problems by number or name..."
-          autocomplete="off"
-        />
-        <ul id="problem-options" class="combobox-options" hidden></ul>
+      <div class="pane-scroll" id="pane-scroll">
+        <div class="combobox" id="problem-combobox">
+          <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="problem-search" type="text" placeholder="Search problems by number or name..." autocomplete="off" />
+          <ul id="problem-options" class="combobox-options" hidden></ul>
+        </div>
+
+        <div id="selected-problem" class="selected-problem" hidden>
+          <span id="selected-problem-num" class="problem-num"></span>
+          <span id="selected-problem-title" class="problem-title"></span>
+          <span id="selected-problem-difficulty" class="badge"></span>
+          <button id="mark-solved-btn" class="btn-ghost" hidden>Mark Solved</button>
+        </div>
+
+        <div id="problem-statement" class="problem-statement" hidden>
+          <p id="problem-statement-text"></p>
+          <div id="problem-examples" class="problem-examples"></div>
+        </div>
+
+        <details class="details-toggle">
+          <summary>Paste full problem statement (optional, improves hints)</summary>
+          <textarea id="problem-details-input" placeholder="Paste the problem description, examples, or constraints here..."></textarea>
+        </details>
+
+        <div class="hint-controls">
+          <div class="ladder" id="hint-ladder" role="radiogroup" aria-label="Hint level">
+            <button type="button" class="rung active" data-level="1" role="radio" aria-checked="true"><b>1</b>Nudge</button>
+            <button type="button" class="rung" data-level="2" role="radio" aria-checked="false"><b>2</b>Pattern</button>
+            <button type="button" class="rung" data-level="3" role="radio" aria-checked="false"><b>3</b>Approach</button>
+            <button type="button" class="rung" data-level="4" role="radio" aria-checked="false"><b>4</b>Pseudocode</button>
+          </div>
+          <button id="hint-btn" class="btn-accent" disabled>Get hint</button>
+        </div>
+
+        <div id="hint-feed" class="hint-feed">
+          <div class="hint-feed-empty">
+            <p><b>Pick a problem to start.</b> Write code in the editor, grab a hint when you're stuck, or just ask the coach below.</p>
+            <div class="starter-chips" id="starter-chips">
+              <button type="button" class="chip" data-q="How should I approach a problem I've never seen before?">How do I approach a new problem?</button>
+              <button type="button" class="chip" data-q="Explain Big-O in two sentences.">Explain Big-O quickly</button>
+              <button type="button" class="chip" data-q="When should I reach for a hash map?">When do I use a hash map?</button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div id="selected-problem" class="selected-problem" hidden>
-        <span id="selected-problem-num" class="problem-num"></span>
-        <span id="selected-problem-title" class="problem-title"></span>
-        <span id="selected-problem-difficulty" class="badge"></span>
-        <button id="mark-solved-btn" class="btn-ghost" hidden>Mark Solved</button>
-      </div>
-
-      <div id="problem-statement" class="problem-statement" hidden>
-        <p id="problem-statement-text"></p>
-        <div id="problem-examples" class="problem-examples"></div>
-      </div>
-
-      <details class="details-toggle">
-        <summary>Paste full problem statement (optional — improves hint quality)</summary>
-        <textarea id="problem-details-input" placeholder="Paste the problem description, examples, or constraints here..."></textarea>
-      </details>
-
-      <div class="hint-controls">
-        <label for="language-select">Language</label>
-        <select id="language-select">
-          <option value="python">Python</option>
-          <option value="javascript">JavaScript</option>
-          <option value="java">Java</option>
-          <option value="cpp">C++</option>
-        </select>
-        <label for="hint-level">Hint level</label>
-        <select id="hint-level">
-          <option value="1">1 → Guiding question</option>
-          <option value="2">2 → Name the pattern</option>
-          <option value="3">3 → Apply it to this problem</option>
-          <option value="4">4 → Pseudocode structure</option>
-        </select>
-        <button id="hint-btn" disabled>Get Hint</button>
-      </div>
-
-      <div id="hint-feed" class="hint-feed">
-        <p class="hint-feed-empty">Pick a problem, write some code, then ask for a hint or hit Submit to run it against test cases.</p>
-      </div>
+      <form class="chat-bar" id="chat-form" autocomplete="off">
+        <input id="chat-input" type="text" placeholder="Ask the coach anything..." aria-label="Ask the coach" />
+        <button type="submit" id="chat-send" class="btn-dark" aria-label="Send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>
     </section>
 
     <section class="pane editor-pane">
       <div class="editor-header">
-        <span>Solution Draft</span>
+        <div class="editor-title">
+          <span class="dot-row"><i></i><i></i><i></i></span>
+          <span>Solution</span>
+          <select id="language-select" aria-label="Language">
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript</option>
+            <option value="java">Java</option>
+            <option value="cpp">C++</option>
+          </select>
+        </div>
         <div class="editor-header-actions">
-          <span id="language-note" class="language-note" hidden>Python only, for now</span>
-          <button id="submit-btn" class="btn-primary" disabled>Submit</button>
+          <span id="language-note" class="language-note" hidden>Run tests in Python only, for now</span>
+          <button id="submit-btn" class="btn-accent" disabled>Submit</button>
         </div>
       </div>
-      <textarea
-        id="code-input"
-        class="code-editor"
-        spellcheck="false"
-        placeholder="def solve():
-    # start writing your draft here
-    pass"
-      ></textarea>
+      <textarea id="code-input" class="code-editor" spellcheck="false"></textarea>
     </section>
   </main>
 

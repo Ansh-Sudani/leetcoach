@@ -16,8 +16,15 @@ load_dotenv()
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "coach.db")
-BASE_DIR = os.path.dirname(__file__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Postgres when DATABASE_URL is set (Vercel + Neon), SQLite otherwise (local dev).
+DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+USE_PG = bool(DATABASE_URL)
+if os.environ.get("VERCEL"):
+    DB_PATH = "/tmp/coach.db"  # only writable dir on Vercel; used only if no DATABASE_URL
+else:
+    DB_PATH = os.path.join(BASE_DIR, "coach.db")
 SANDBOX_RUNNER = os.path.join(BASE_DIR, "sandbox_runner.py")
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
@@ -39,27 +46,58 @@ def _rate_limited(key):
     hits.append(now)
     return False
 
-HINT_SYSTEM_PROMPT = """You are a Socratic coding interview coach. The user is working on a LeetCode-style
-problem. You are given the problem statement, the user's current code/thoughts, and a hint level (1-4).
+HINT_SYSTEM_PROMPT = """You are LeetCoach, a sharp coding interview coach. The user is stuck on a
+LeetCode-style problem. You get the problem, their current code, and a hint level (1-4).
 
-Rules:
-- NEVER give the full solution or working code, at any hint level.
-- Hint level 1: Ask a guiding question that points at the right way to think about the problem
-  (e.g. what pattern, what data structure, what to reconsider). No specifics about the approach.
-- Hint level 2: Name the general technique or pattern (e.g. "two pointers", "this is a graph traversal"),
-  but not how to apply it to this specific problem.
-- Hint level 3: Explain how the technique applies to this specific problem, in plain English, still no code.
-- Hint level 4: Give pseudocode-level structure (not runnable code) — the key steps, not implementation.
-- Always be encouraging but concise. 2-4 sentences max, no matter the level.
-- If their existing code has a bug, you may point at WHERE the bug likely is without fixing it for them.
+Hard rules:
+- Max 2 sentences, under 45 words total. No intro, no praise, no "Great question", no recap of the problem.
+- Never give the full solution or runnable code.
+- Be specific to THEIR code. If they wrote something, react to what's actually there.
+- If their code has a bug, say exactly where (line or expression) and what's off, without writing the fix.
+
+Levels:
+1. One pointed question that makes the key insight click (e.g. "What would you need to remember about
+   numbers you've already seen?").
+2. Name the pattern or data structure, plus one line on why it fits.
+3. How that pattern maps onto this problem: what you store, what you check, when.
+4. Pseudocode skeleton: 3-5 short numbered steps, plain English, no real syntax.
+
+Use `backticks` for variable names. Level 4 may use a short numbered list; every other level is plain text.
 """
+
+
+def _connect():
+    if USE_PG:
+        import psycopg2
+        import psycopg2.extras
+        return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
+        g.db = _connect()
     return g.db
+
+
+def db_query(sql, params=(), fetch=None):
+    """Run a query on either backend. Write SQL with ? placeholders."""
+    db = get_db()
+    if USE_PG:
+        sql = sql.replace("?", "%s")
+    cur = db.cursor()
+    cur.execute(sql, params)
+    result = None
+    if fetch == "all":
+        result = [dict(r) for r in cur.fetchall()]
+    elif fetch == "one":
+        row = cur.fetchone()
+        result = dict(row) if row else None
+    db.commit()
+    cur.close()
+    return result
 
 
 @app.teardown_appcontext
@@ -70,11 +108,14 @@ def close_db(exception=None):
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        """
+    id_col = "SERIAL PRIMARY KEY" if USE_PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        f"""
         CREATE TABLE IF NOT EXISTS problems (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_col},
+            client_id TEXT,
             title TEXT NOT NULL,
             difficulty TEXT,
             status TEXT DEFAULT 'in_progress',
@@ -85,7 +126,13 @@ def init_db():
         """
     )
     conn.commit()
+    cur.close()
     conn.close()
+
+
+def client_id():
+    """Anonymous per-browser id so each visitor gets their own progress."""
+    return (request.headers.get("X-Client-Id") or "anon")[:64]
 
 
 @app.route("/")
@@ -117,7 +164,7 @@ Hint level requested: {hint_level}
     try:
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=300,
+            max_tokens=200,
             system=HINT_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
         )
@@ -131,10 +178,17 @@ Hint level requested: {hint_level}
 
 def _limit_resources():
     import resource
-    resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
-    resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (1024 * 1024, 1024 * 1024))
+    limits = [
+        (resource.RLIMIT_CPU, 5),
+        (resource.RLIMIT_AS, 256 * 1024 * 1024),
+        (resource.RLIMIT_NOFILE, 64),
+        (resource.RLIMIT_FSIZE, 1024 * 1024),
+    ]
+    for kind, value in limits:
+        try:
+            resource.setrlimit(kind, (value, value))
+        except (ValueError, OSError):
+            pass  # some hosts won't let us set every limit; the timeout still applies
 
 
 def _values_match(actual, expected, comparator):
@@ -152,10 +206,9 @@ SUBMIT_SYSTEM_PROMPT = """You are a concise, encouraging coding interview coach 
 LeetCode-style submission just failed some test cases. You are given the problem, their code, and the
 test results.
 
-Write a SHORT (3-6 sentences) breakdown: name the likely root cause (off-by-one, wrong base case,
-unhandled edge case, etc.) by reasoning about the specific failing test case(s), but do NOT rewrite
-their solution or give working code. Keep it tight — no walls of text, no restating the whole problem
-back to them.
+In 2-3 short sentences: name the root cause (off-by-one, wrong base case, unhandled edge case, etc.),
+point to the exact line or expression responsible, and reference the failing input. Don't rewrite their
+solution or give working code. No intro, no praise, no restating the problem.
 """
 
 
@@ -296,13 +349,64 @@ def followup():
         return jsonify({"error": str(e)}), 500
 
 
+CHAT_SYSTEM_PROMPT = """You are LeetCoach, a friendly, sharp coding interview coach built into a
+LeetCode-style practice site. The user can ask you anything: about the current problem, their code,
+a concept (Big-O, recursion, hash maps), or interview prep in general.
+
+How to answer:
+- Short and direct. Default to 1-3 sentences. Go longer only if they ask for an explanation.
+- Teach, don't spoil: for the current problem, guide them toward the answer instead of handing over a
+  full solution, unless they explicitly ask to see one after trying.
+- Be specific to their code when it's relevant. Point at exact lines or expressions.
+- Use `backticks` for code and **bold** sparingly. Small code snippets (a few lines) are fine for
+  concepts, not full solutions.
+"""
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    if _rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"error": "Too many requests, give it a few seconds."}), 429
+
+    data = request.get_json(force=True)
+    problem = (data.get("problem") or "").strip()
+    code = (data.get("code") or "").strip()
+    history = data.get("history") or []
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "Ask something first."}), 400
+
+    context = f"Current problem:\n{problem or '(none selected yet)'}\n\nTheir current code:\n{code or '(empty)'}"
+    messages = []
+    for turn in history[-10:]:
+        role = turn.get("role")
+        if role in ("user", "assistant"):
+            messages.append({"role": role, "content": str(turn.get("content", ""))[:4000]})
+    if messages and messages[0]["role"] != "user":
+        messages = messages[1:]
+    messages.append({"role": "user", "content": f"{context[:8000]}\n\nMy question: {question[:2000]}"})
+
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            system=CHAT_SYSTEM_PROMPT,
+            messages=messages,
+        )
+        reply = "".join(block.text for block in response.content if block.type == "text")
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/problems", methods=["GET"])
 def list_problems():
-    db = get_db()
-    rows = db.execute(
-        "SELECT * FROM problems ORDER BY created_at DESC"
-    ).fetchall()
-    return jsonify([dict(row) for row in rows])
+    rows = db_query(
+        "SELECT * FROM problems WHERE client_id = ? ORDER BY created_at DESC",
+        (client_id(),),
+        fetch="all",
+    )
+    return jsonify(rows)
 
 
 @app.route("/api/problems", methods=["POST"])
@@ -313,34 +417,29 @@ def add_problem():
     if not title:
         return jsonify({"error": "Title is required"}), 400
 
-    db = get_db()
-    cur = db.execute(
-        "INSERT INTO problems (title, difficulty, created_at) VALUES (?, ?, ?)",
-        (title, difficulty, datetime.utcnow().isoformat()),
+    row = db_query(
+        "INSERT INTO problems (client_id, title, difficulty, created_at) VALUES (?, ?, ?, ?) RETURNING id",
+        (client_id(), title, difficulty, datetime.utcnow().isoformat()),
+        fetch="one",
     )
-    db.commit()
-    return jsonify({"id": cur.lastrowid}), 201
+    return jsonify({"id": row["id"]}), 201
 
 
 @app.route("/api/problems/<int:problem_id>/solve", methods=["POST"])
 def mark_solved(problem_id):
-    db = get_db()
-    db.execute(
-        "UPDATE problems SET status = 'solved', solved_at = ? WHERE id = ?",
-        (datetime.utcnow().isoformat(), problem_id),
+    db_query(
+        "UPDATE problems SET status = 'solved', solved_at = ? WHERE id = ? AND client_id = ?",
+        (datetime.utcnow().isoformat(), problem_id, client_id()),
     )
-    db.commit()
     return jsonify({"ok": True})
 
 
 @app.route("/api/problems/<int:problem_id>/hint_used", methods=["POST"])
 def increment_hint(problem_id):
-    db = get_db()
-    db.execute(
-        "UPDATE problems SET hint_count = hint_count + 1 WHERE id = ?",
-        (problem_id,),
+    db_query(
+        "UPDATE problems SET hint_count = hint_count + 1 WHERE id = ? AND client_id = ?",
+        (problem_id, client_id()),
     )
-    db.commit()
     return jsonify({"ok": True})
 
 
