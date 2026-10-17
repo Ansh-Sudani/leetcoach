@@ -45,17 +45,10 @@ document.getElementById("theme-btn").addEventListener("click", () => {
   try { localStorage.setItem("leetcoach_theme", next); } catch (e) {}
 });
 
-// ---------- Anonymous per-browser id, so progress is yours ----------
-function getClientId() {
-  let id = null;
-  try { id = localStorage.getItem("leetcoach_client_id"); } catch (e) {}
-  if (!id) {
-    id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
-    try { localStorage.setItem("leetcoach_client_id", id); } catch (e) {}
-  }
-  return id;
-}
-const CLIENT_ID = getClientId();
+// ---------- Fresh session on every page load ----------
+// A new anonymous id each load, so a refresh looks exactly like a brand-new visitor
+// (nothing solved, no saved drafts). Swap this for real accounts later.
+const CLIENT_ID = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
 
 function api(url, options = {}) {
   const headers = Object.assign({ "X-Client-Id": CLIENT_ID }, options.headers || {});
@@ -68,11 +61,12 @@ let hintLevel = 1;
 let chatHistory = [];
 
 const LANGUAGE_PLACEHOLDERS = {
-  python: "def solve():\n    # start writing your draft here\n    pass",
-  javascript: "function solve() {\n  // start writing your draft here\n}",
-  java: "class Solution {\n    // start writing your draft here\n}",
-  cpp: "class Solution {\npublic:\n    // start writing your draft here\n};",
+  python: "Pick a problem to load its starter code.",
+  javascript: "Pick a problem to load its starter code.",
+  java: "Pick a problem to load its starter code.",
+  cpp: "Pick a problem to load its starter code.",
 };
+const drafts = {}; // in-memory only: "problemId:lang" -> code
 
 const CM_MODES = {
   python: "python",
@@ -91,7 +85,13 @@ const editor = CodeMirror.fromTextArea(codeInput, {
   smartIndent: false,
   extraKeys: {
     Tab: (cm) => cm.replaceSelection("    "),
-    Enter: (cm) => cm.replaceSelection("\n"),
+    Enter: (cm) => {
+      // keep the current line's indentation, and indent one more level after { or :
+      const line = cm.getLine(cm.getCursor().line).slice(0, cm.getCursor().ch);
+      let indent = (line.match(/^\s*/) || [""])[0];
+      if (/[{:(\[]\s*$/.test(line)) indent += "    ";
+      cm.replaceSelection("\n" + indent);
+    },
   },
   placeholder: LANGUAGE_PLACEHOLDERS.python,
 });
@@ -106,7 +106,7 @@ function difficultyClass(difficulty) {
 }
 
 function draftKey(problemId, language) {
-  return `leetcoach_draft_${problemId}_${language}`;
+  return `${problemId}:${language}`;
 }
 
 function escapeHtml(str) {
@@ -232,20 +232,25 @@ function loadDraftForCurrent() {
   editor.setOption("mode", CM_MODES[lang] || "python");
   editor.setOption("placeholder", LANGUAGE_PLACEHOLDERS[lang] || "");
 
-  const saved = localStorage.getItem(draftKey(current.id, lang));
-  if (saved !== null) {
-    editor.setValue(saved);
-  } else if (lang === "python" && current.details) {
-    editor.setValue(current.details.starterCode);
-  } else {
-    editor.setValue("");
-  }
+  const saved = drafts[draftKey(current.id, lang)];
+  const starter = current.details && current.details.starter ? current.details.starter[lang] : "";
+  editor.setValue(saved !== undefined ? saved : starter || "");
+  // put the cursor inside the function body
+  const lines = editor.getValue().split("\n");
+  const bodyLine = lines.findIndex((l, i) => i > 0 && /^\s*(pass)?\s*$/.test(l) && /[{:]\s*$/.test(lines[i - 1]));
+  if (bodyLine > 0) editor.setCursor({ line: bodyLine, ch: lines[bodyLine].length });
+}
+
+function resetToStarter() {
+  if (!current) return;
+  delete drafts[draftKey(current.id, languageSelect.value)];
+  loadDraftForCurrent();
+  editor.focus();
 }
 
 function updateSubmitAvailability() {
-  const langOk = languageSelect.value === "python";
   submitBtn.disabled = !current;
-  languageNote.hidden = langOk;
+  languageNote.hidden = !current;
 }
 
 async function selectProblem(p) {
@@ -276,20 +281,19 @@ async function selectProblem(p) {
 
 function updateSolveButton() {
   solveBtn.hidden = false;
-  if (current.solved) {
-    solveBtn.textContent = "Solved ✓";
-    solveBtn.classList.add("solved");
-  } else {
-    solveBtn.textContent = "Mark Solved";
-    solveBtn.classList.remove("solved");
-  }
+  solveBtn.classList.toggle("solved", current.solved);
+  solveBtn.innerHTML = current.solved
+    ? '<span class="when-idle">Solved ✓</span><span class="when-hover">Mark unsolved</span>'
+    : "Mark solved";
+  solveBtn.title = current.solved ? "Click to mark this problem unsolved" : "Mark this problem as solved";
 }
 
 solveBtn.addEventListener("click", async () => {
-  if (!current || current.solved) return;
-  await api(`/api/problems/${current.trackedId}/solve`, { method: "POST" });
-  current.solved = true;
+  if (!current) return;
+  const next = !current.solved;
+  current.solved = next;
   updateSolveButton();
+  api(`/api/problems/${current.trackedId}/${next ? "solve" : "unsolve"}`, { method: "POST" }).catch(() => {});
 });
 
 languageSelect.addEventListener("change", () => {
@@ -303,8 +307,10 @@ languageSelect.addEventListener("change", () => {
 });
 
 editor.on("change", () => {
-  if (current) localStorage.setItem(draftKey(current.id, languageSelect.value), editor.getValue());
+  if (current) drafts[draftKey(current.id, languageSelect.value)] = editor.getValue();
 });
+
+languageNote.addEventListener("click", resetToStarter);
 
 function clearEmptyFeedNotice() {
   const empty = hintFeed.querySelector(".hint-feed-empty");
@@ -508,17 +514,82 @@ function appendSubmitCard(problemTitle, code, data) {
   }
 }
 
+// ---------- JavaScript runs in a sandboxed Web Worker in the browser ----------
+const JS_WORKER_SRC = `
+function ListNode(val, next) { this.val = (val === undefined ? 0 : val); this.next = (next === undefined ? null : next); }
+function build(v) { const d = new ListNode(0); let t = d; for (const x of v) { t.next = new ListNode(x); t = t.next; } return d.next; }
+function toList(n) { const out = []; let g = 0; while (n) { if (++g > 200000) throw new Error("linked list result looks cyclic"); out.push(n.val); n = n.next; } return out; }
+function convertArg(v, t) { if (t === "ListNode") return build(v); if (t === "ListNode[]") return v.map(build); return v; }
+function plain(v) {
+  if (v instanceof ListNode) return toList(v);
+  if (v === undefined) return null;
+  if (typeof v === "number" && !isFinite(v)) return null;
+  return v;
+}
+self.onmessage = (e) => {
+  const { code, fn, tests, types, mode } = e.data;
+  let f;
+  try {
+    f = new Function("ListNode", code + "\\n;return (typeof " + fn + " === 'function') ? " + fn + " : undefined;")(ListNode);
+  } catch (err) { self.postMessage({ compile_error: (err && err.name ? err.name + ": " : "") + (err && err.message || err) }); return; }
+  if (typeof f !== "function") { self.postMessage({ compile_error: "Function '" + fn + "' is not defined." }); return; }
+  const results = tests.map((t) => {
+    try {
+      const args = t.args.map((v, i) => convertArg(JSON.parse(JSON.stringify(v)), types.args[i]));
+      const ret = f(...args);
+      let actual;
+      if (mode === "final_arg0" || types.ret === "void") actual = args[0];
+      else if (mode === "prefix_len_of_arg0") actual = args[0].slice(0, Math.max(0, Math.min(ret, args[0].length)));
+      else if (types.ret === "ListNode") actual = toList(ret);
+      else actual = ret;
+      return { actual: JSON.parse(JSON.stringify(plain(actual)) ?? "null"), error: null };
+    } catch (err) {
+      return { actual: null, error: (err && err.name ? err.name + ": " : "") + (err && err.message || String(err)) };
+    }
+  });
+  self.postMessage({ results });
+};
+`;
+
+function runJavaScript(code, details) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(new Blob([JS_WORKER_SRC], { type: "text/javascript" }));
+    const worker = new Worker(url);
+    const done = (value) => { clearTimeout(timer); worker.terminate(); URL.revokeObjectURL(url); resolve(value); };
+    const timer = setTimeout(() => done({ timeout: true }), 5000);
+    worker.onmessage = (e) => done(e.data);
+    worker.onerror = (e) => { e.preventDefault(); done({ compile_error: e.message || "Your code crashed." }); };
+    worker.postMessage({
+      code,
+      fn: details.functionName,
+      tests: details.tests.map((t) => ({ args: t.args })),
+      types: details.types,
+      mode: details.resultMode || "return",
+    });
+  });
+}
+
 async function submitCode() {
   if (!current) return;
 
   const code = editor.getValue();
+  const language = languageSelect.value;
   submitBtn.disabled = true;
-  submitBtn.textContent = "Running...";
+  submitBtn.textContent = language === "java" || language === "cpp" ? "Compiling..." : "Running...";
 
   try {
+    const payload = { problem_id: current.id, language, code };
+    if (language === "javascript" && current.details) {
+      const out = await runJavaScript(code, current.details);
+      if (out.timeout) {
+        appendHintCard({ text: "Time limit exceeded. Your code ran for over 5 seconds, so check for an infinite loop.", isError: true });
+        return;
+      }
+      payload.client_results = out.compile_error ? { compile_error: out.compile_error } : out.results;
+    }
     const res = await api("/api/submit", {
       method: "POST",
-      body: JSON.stringify({ problem_id: current.id, language: languageSelect.value, code }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (data.error) {

@@ -119,6 +119,7 @@ body, .topbar, .pane, .chat-bar, .chat-bar input, #problem-search, .problem-stat
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body { height: 100%; margin: 0; }
 
@@ -754,3 +755,23 @@ code {
 .CodeMirror-placeholder { color: #6B6E76 !important; }
 .cm-s-material-darker .CodeMirror-selected { background: rgba(243, 146, 0, 0.18) !important; }
 .cm-s-material-darker .CodeMirror-activeline-background { background: rgba(255, 255, 255, 0.03); }
+
+/* Reset-to-starter button in the editor header */
+.reset-btn {
+  background: transparent;
+  border: 1px solid var(--charcoal-line);
+  color: #B9BCC3;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.2s, border-color 0.2s;
+}
+.reset-btn:hover { color: #fff; border-color: #6D7077; }
+
+/* Solved button: hover to reveal "Mark unsolved" */
+.btn-ghost .when-hover { display: none; }
+.btn-ghost.solved { cursor: pointer; }
+.btn-ghost.solved:hover { color: var(--hard); border-color: var(--hard); background: rgba(224, 70, 76, 0.06); }
+.btn-ghost.solved:hover .when-idle { display: none; }
+.btn-ghost.solved:hover .when-hover { display: inline; }
