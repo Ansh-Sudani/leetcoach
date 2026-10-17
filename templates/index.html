@@ -100,7 +100,7 @@
         <div class="editor-title">
           <span class="dot-row"><i></i><i></i><i></i></span>
           <span>Solution</span>
-          <select id="language-select" aria-label="Language">
+          <select id="language-select" aria-label="Language" autocomplete="off">
             <option value="python">Python</option>
             <option value="javascript">JavaScript</option>
             <option value="java">Java</option>
@@ -108,11 +108,11 @@
           </select>
         </div>
         <div class="editor-header-actions">
-          <span id="language-note" class="language-note" hidden>Run tests in Python only, for now</span>
+          <button type="button" id="language-note" class="reset-btn" hidden title="Reset to starter code">Reset</button>
           <button id="submit-btn" class="btn-accent" disabled>Submit</button>
         </div>
       </div>
-      <textarea id="code-input" class="code-editor" spellcheck="false"></textarea>
+      <textarea id="code-input" class="code-editor" spellcheck="false" autocomplete="off"></textarea>
     </section>
   </main>
 

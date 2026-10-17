@@ -2,7 +2,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{app.py,sandbox_runner.py,templates/**,static/**}"
+      "includeFiles": "{app.py,runners.py,sandbox_runner.py,templates/**,static/**}"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]

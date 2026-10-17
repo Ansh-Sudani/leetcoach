@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, g
 from anthropic import Anthropic
 from werkzeug.middleware.proxy_fix import ProxyFix
+from runners import run_compiled
 
 load_dotenv()
 
@@ -191,15 +192,31 @@ def _limit_resources():
             pass  # some hosts won't let us set every limit; the timeout still applies
 
 
+def _same(a, b):
+    """Deep equality, with a small tolerance for floats (e.g. 2.0 vs 2.00000001)."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a is b if isinstance(a, bool) and isinstance(b, bool) else False
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(a - b) <= 1e-5 * max(1.0, abs(b))
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b))
+    return a == b
+
+
 def _values_match(actual, expected, comparator):
     try:
         if comparator == "sorted":
             return sorted(actual) == sorted(expected)
         if comparator == "set":
             return set(actual) == set(expected)
+        if comparator == "set_of_sorted_lists":
+            norm = lambda v: sorted(tuple(sorted(x)) for x in v)
+            return norm(actual) == norm(expected)
+        if comparator == "set_of_tuples":
+            return {tuple(x) for x in actual} == {tuple(x) for x in expected}
     except Exception:
         pass
-    return actual == expected
+    return _same(actual, expected)
 
 
 SUBMIT_SYSTEM_PROMPT = """You are a concise, encouraging coding interview coach helping a candidate whose
@@ -242,6 +259,29 @@ Test results ({'ALL PASSED' if all_passed else 'SOME FAILED'}):
         return "Couldn't generate an explanation: " + str(e)
 
 
+def _run_python(code, problem):
+    payload = json.dumps({
+        "code": code,
+        "function_name": problem["functionName"],
+        "tests": [{"args": t["args"]} for t in problem["tests"]],
+        "arg_types": problem.get("argTypes"),
+        "return_type": problem.get("returnType"),
+        "result_mode": problem.get("resultMode", "return"),
+    })
+    run_kwargs = dict(input=payload, capture_output=True, text=True, timeout=6, env={})
+    if os.name == "posix":
+        run_kwargs["preexec_fn"] = _limit_resources
+    try:
+        proc = subprocess.run([sys.executable, "-I", "-S", SANDBOX_RUNNER], **run_kwargs)
+    except subprocess.TimeoutExpired:
+        return {"error": "Time limit exceeded — your code took too long to run."}
+    stdout = (proc.stdout or "")[-200000:]
+    try:
+        return json.loads(stdout)
+    except ValueError:
+        return {"error": "The sandbox couldn't run your code. " + (proc.stderr or "")[-300:]}
+
+
 @app.route("/api/submit", methods=["POST"])
 def submit_code():
     if _rate_limited(request.remote_addr or "unknown"):
@@ -252,39 +292,38 @@ def submit_code():
     language = data.get("language", "python")
     code = data.get("code", "")
 
-    if language != "python":
-        return jsonify({"error": "Real execution currently only supports Python — try Get Hint instead, or switch the language to Python."}), 400
+    if language not in ("python", "javascript", "java", "cpp"):
+        return jsonify({"error": "That language isn't supported yet."}), 400
 
     problem = PROBLEM_DETAILS.get(problem_id)
     if not problem:
-        return jsonify({"error": "This problem doesn't have executable test cases yet — try Get Hint instead."}), 400
+        return jsonify({"error": "This problem doesn't have test cases yet — try Get Hint instead."}), 400
 
     if not code.strip():
         return jsonify({"error": "Write some code first."}), 400
     if len(code) > 20000:
         return jsonify({"error": "Solution is too long."}), 400
 
-    payload = json.dumps({
-        "code": code,
-        "function_name": problem["functionName"],
-        "tests": [{"args": t["args"]} for t in problem["tests"]],
-    })
+    if language == "python":
+        sandbox_result = _run_python(code, problem)
+    elif language == "javascript":
+        # JavaScript runs in the user's browser (a sandboxed Web Worker); we only judge the results here.
+        client_results = data.get("client_results")
+        if isinstance(client_results, dict) and client_results.get("compile_error"):
+            sandbox_result = {"compile_error": str(client_results["compile_error"])[:2000]}
+        elif not isinstance(client_results, list) or len(client_results) != len(problem["tests"]):
+            return jsonify({"error": "Couldn't run your JavaScript. Refresh and try again."}), 400
+        else:
+            sandbox_result = {"results": [
+                {"actual": r.get("actual") if isinstance(r, dict) else None,
+                 "error": (str(r.get("error"))[:500] if isinstance(r, dict) and r.get("error") else None)}
+                for r in client_results
+            ]}
+    else:
+        sandbox_result = run_compiled(language, code, problem)
 
-    run_kwargs = dict(input=payload, capture_output=True, text=True, timeout=6, env={})
-    if os.name == "posix":
-        run_kwargs["preexec_fn"] = _limit_resources
-
-    try:
-        proc = subprocess.run([sys.executable, "-I", "-S", SANDBOX_RUNNER], **run_kwargs)
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "Time limit exceeded — your code took too long to run."})
-
-    stdout = (proc.stdout or "")[-20000:]
-    try:
-        sandbox_result = json.loads(stdout)
-    except ValueError:
-        return jsonify({"error": "The sandbox couldn't run your code.", "detail": (proc.stderr or "")[:2000]})
-
+    if sandbox_result.get("error"):
+        return jsonify({"error": sandbox_result["error"]})
     if sandbox_result.get("compile_error"):
         return jsonify({"error": sandbox_result["compile_error"]})
 
@@ -430,6 +469,15 @@ def mark_solved(problem_id):
     db_query(
         "UPDATE problems SET status = 'solved', solved_at = ? WHERE id = ? AND client_id = ?",
         (datetime.utcnow().isoformat(), problem_id, client_id()),
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/problems/<int:problem_id>/unsolve", methods=["POST"])
+def mark_unsolved(problem_id):
+    db_query(
+        "UPDATE problems SET status = 'in_progress', solved_at = NULL WHERE id = ? AND client_id = ?",
+        (problem_id, client_id()),
     )
     return jsonify({"ok": True})
 
