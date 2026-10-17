@@ -11,11 +11,51 @@ const problemExamplesEl = document.getElementById("problem-examples");
 const detailsInput = document.getElementById("problem-details-input");
 const languageSelect = document.getElementById("language-select");
 const languageNote = document.getElementById("language-note");
-const hintLevelSelect = document.getElementById("hint-level");
+const ladder = document.getElementById("hint-ladder");
+const paneScroll = document.getElementById("pane-scroll");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+const chatSend = document.getElementById("chat-send");
 const hintBtn = document.getElementById("hint-btn");
 const submitBtn = document.getElementById("submit-btn");
 const hintFeed = document.getElementById("hint-feed");
 const codeInput = document.getElementById("code-input");
+
+// ---------- Intro splash ----------
+(function runSplash() {
+  const splash = document.getElementById("splash");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const finish = () => {
+    splash.classList.add("done");
+    document.body.classList.remove("is-loading");
+    setTimeout(() => splash.remove(), 600);
+  };
+  if (reduce) return finish();
+  const t = setTimeout(finish, 1900);
+  splash.addEventListener("click", () => { clearTimeout(t); finish(); });
+})();
+
+// ---------- Anonymous per-browser id, so progress is yours ----------
+function getClientId() {
+  let id = null;
+  try { id = localStorage.getItem("leetcoach_client_id"); } catch (e) {}
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+    try { localStorage.setItem("leetcoach_client_id", id); } catch (e) {}
+  }
+  return id;
+}
+const CLIENT_ID = getClientId();
+
+function api(url, options = {}) {
+  const headers = Object.assign({ "X-Client-Id": CLIENT_ID }, options.headers || {});
+  if (options.body) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers }));
+}
+
+const HINT_NAMES = { 1: "Nudge", 2: "Pattern", 3: "Approach", 4: "Pseudocode" };
+let hintLevel = 1;
+let chatHistory = [];
 
 const LANGUAGE_PLACEHOLDERS = {
   python: "def solve():\n    # start writing your draft here\n    pass",
@@ -67,6 +107,7 @@ function escapeHtml(str) {
 
 function renderInline(str) {
   return escapeHtml(str)
+    .replace(/```[a-z]*\n?([\s\S]*?)```/g, '<code style="display:block;padding:8px 10px;margin:4px 0">$1</code>')
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
@@ -147,14 +188,13 @@ document.addEventListener("click", (e) => {
 });
 
 async function findOrCreateTracked(title, difficulty) {
-  const res = await fetch("/api/problems");
+  const res = await api("/api/problems");
   const tracked = await res.json();
   const existing = tracked.find((t) => t.title === title);
   if (existing) return existing;
 
-  const createRes = await fetch("/api/problems", {
+  const createRes = await api("/api/problems", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, difficulty }),
   });
   const created = await createRes.json();
@@ -212,6 +252,8 @@ async function selectProblem(p) {
   renderProblemStatement(details);
 
   hintBtn.disabled = false;
+  setHintLevel(1);
+  ladder.querySelectorAll(".rung").forEach((r) => r.classList.remove("used"));
 
   const tracked = await findOrCreateTracked(p.title, p.difficulty);
   const solved = tracked.status === "solved";
@@ -235,7 +277,7 @@ function updateSolveButton() {
 
 solveBtn.addEventListener("click", async () => {
   if (!current || current.solved) return;
-  await fetch(`/api/problems/${current.trackedId}/solve`, { method: "POST" });
+  await api(`/api/problems/${current.trackedId}/solve`, { method: "POST" });
   current.solved = true;
   updateSolveButton();
 });
@@ -259,52 +301,84 @@ function clearEmptyFeedNotice() {
   if (empty) empty.remove();
 }
 
+function scrollFeed() {
+  requestAnimationFrame(() => {
+    paneScroll.scrollTop = paneScroll.scrollHeight;
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      const last = hintFeed.lastElementChild;
+      if (last) last.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+}
+
+function setHintLevel(level) {
+  hintLevel = Math.max(1, Math.min(4, level));
+  ladder.querySelectorAll(".rung").forEach((r) => {
+    const on = Number(r.dataset.level) === hintLevel;
+    r.classList.toggle("active", on);
+    r.setAttribute("aria-checked", String(on));
+  });
+}
+
+ladder.addEventListener("click", (e) => {
+  const rung = e.target.closest(".rung");
+  if (rung) setHintLevel(Number(rung.dataset.level));
+});
+
 function appendHintCard({ level, text, isError }) {
   clearEmptyFeedNotice();
   const card = document.createElement("div");
   card.className = "hint-card" + (isError ? " error" : "");
   card.innerHTML = `
-    <div class="hint-card-meta"><span>${isError ? "Error" : "Hint level " + level}</span></div>
+    <div class="hint-card-meta"><span>${isError ? "Something went wrong" : `Hint ${level} · ${HINT_NAMES[level]}`}</span></div>
     <p></p>
   `;
   card.querySelector("p").innerHTML = renderInline(text);
   hintFeed.appendChild(card);
-  hintFeed.scrollTop = hintFeed.scrollHeight;
+  scrollFeed();
+}
+
+function currentProblemText() {
+  if (detailsInput.value.trim()) return detailsInput.value.trim();
+  if (!current) return "";
+  return current.details
+    ? `LeetCode-style #${current.id}: ${current.title} (${current.difficulty})\n${current.details.description}`
+    : `LeetCode #${current.id}: ${current.title} (${current.difficulty})`;
 }
 
 async function getHint() {
   if (!current) return;
 
-  const problemText = detailsInput.value.trim()
-    ? detailsInput.value.trim()
-    : current.details
-    ? `LeetCode-style #${current.id}: ${current.title} (${current.difficulty})\n${current.details.description}`
-    : `LeetCode #${current.id}: ${current.title} (${current.difficulty})`;
+  const problemText = currentProblemText();
   const code = editor.getValue();
-  const hintLevel = hintLevelSelect.value;
+  const level = hintLevel;
 
   hintBtn.disabled = true;
   hintBtn.textContent = "Thinking...";
 
   try {
-    const res = await fetch("/api/hint", {
+    const res = await api("/api/hint", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ problem: problemText, code, hint_level: hintLevel }),
+      body: JSON.stringify({ problem: problemText, code, hint_level: level }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
     appendHintCard({ level: data.hint_level, text: data.hint });
+    chatHistory.push({ role: "user", content: `Give me a level ${data.hint_level} hint.` });
+    chatHistory.push({ role: "assistant", content: data.hint });
+    const rung = ladder.querySelector(`.rung[data-level="${data.hint_level}"]`);
+    if (rung) rung.classList.add("used");
+    setHintLevel(data.hint_level + 1); // next click goes one level deeper
 
     if (current.trackedId) {
-      fetch(`/api/problems/${current.trackedId}/hint_used`, { method: "POST" }).catch(() => {});
+      api(`/api/problems/${current.trackedId}/hint_used`, { method: "POST" }).catch(() => {});
     }
   } catch (err) {
     appendHintCard({ text: "Couldn't get a hint: " + err.message, isError: true });
   } finally {
     hintBtn.disabled = false;
-    hintBtn.textContent = "Get Hint";
+    hintBtn.textContent = "Get hint";
   }
 }
 
@@ -314,64 +388,71 @@ function formatArgs(args, params) {
     .join(", ");
 }
 
-function buildSubmitContext(problemTitle, code, data) {
-  const lines = data.results.map(
-    (r) => `${r.passed ? "PASS" : "FAIL"} expected=${JSON.stringify(r.expected)} actual=${JSON.stringify(r.actual)}${r.error ? " error=" + r.error : ""}`
-  );
-  return `Problem: ${problemTitle}\n\nCode:\n${code}\n\nTest results:\n${lines.join("\n")}\n\nMy explanation to you: ${data.explanation}`;
-}
+// ---------- Chat with the coach (available from the start) ----------
 
-function appendFollowupMessage(container, role, text) {
+function appendMessage(role, text) {
+  clearEmptyFeedNotice();
   const msg = document.createElement("div");
-  msg.className = `followup-msg ${role}`;
+  msg.className = `msg ${role}`;
   msg.innerHTML = renderInline(text);
-  container.appendChild(msg);
-  container.scrollTop = container.scrollHeight;
+  hintFeed.appendChild(msg);
+  scrollFeed();
+  return msg;
 }
 
-function wireFollowup(card, contextText) {
-  const toggle = card.querySelector(".followup-toggle");
-  const chat = card.querySelector(".followup-chat");
-  const messagesEl = card.querySelector(".followup-messages");
-  const input = card.querySelector(".followup-input");
-  const sendBtn = card.querySelector(".followup-send");
-  const history = [];
+function showTyping() {
+  clearEmptyFeedNotice();
+  const el = document.createElement("div");
+  el.className = "msg assistant";
+  el.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  hintFeed.appendChild(el);
+  scrollFeed();
+  return el;
+}
 
-  toggle.addEventListener("click", () => {
-    chat.hidden = !chat.hidden;
-    toggle.textContent = chat.hidden ? "Ask a follow-up ↓" : "Hide follow-up ↑";
-  });
+async function askCoach(question) {
+  question = question.trim();
+  if (!question) return;
+  appendMessage("user", question);
+  chatInput.value = "";
+  chatSend.disabled = true;
+  const typing = showTyping();
 
-  async function send() {
-    const question = input.value.trim();
-    if (!question) return;
-    input.value = "";
-    sendBtn.disabled = true;
-    appendFollowupMessage(messagesEl, "user", question);
-    history.push({ role: "user", content: question });
-
-    try {
-      const res = await fetch("/api/followup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: contextText, history: history.slice(0, -1), question }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      appendFollowupMessage(messagesEl, "assistant", data.reply);
-      history.push({ role: "assistant", content: data.reply });
-    } catch (err) {
-      appendFollowupMessage(messagesEl, "assistant", "Error: " + err.message);
-    } finally {
-      sendBtn.disabled = false;
-    }
+  try {
+    const res = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        question,
+        problem: currentProblemText(),
+        code: editor.getValue(),
+        history: chatHistory,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    typing.remove();
+    appendMessage("assistant", data.reply);
+    chatHistory.push({ role: "user", content: question });
+    chatHistory.push({ role: "assistant", content: data.reply });
+    chatHistory = chatHistory.slice(-12);
+  } catch (err) {
+    typing.remove();
+    appendHintCard({ text: "Couldn't reach the coach: " + err.message, isError: true });
+  } finally {
+    chatSend.disabled = false;
+    chatInput.focus();
   }
-
-  sendBtn.addEventListener("click", send);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") send();
-  });
 }
+
+chatForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  askCoach(chatInput.value);
+});
+
+document.getElementById("starter-chips").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (chip) askCoach(chip.dataset.q);
+});
 
 function appendSubmitCard(problemTitle, code, data) {
   clearEmptyFeedNotice();
@@ -382,8 +463,8 @@ function appendSubmitCard(problemTitle, code, data) {
 
   const passCount = data.results.filter((r) => r.passed).length;
   const verdictText = data.all_passed
-    ? `✓ Correct — ${passCount}/${data.results.length} tests passed`
-    : `❌ ${passCount}/${data.results.length} tests passed`;
+    ? `✓ Accepted · ${passCount}/${data.results.length} tests passed`
+    : `✗ ${passCount}/${data.results.length} tests passed`;
 
   const testsHtml = data.results
     .map((r) => {
@@ -392,19 +473,7 @@ function appendSubmitCard(problemTitle, code, data) {
     })
     .join("");
 
-  const explanationBlock = data.all_passed
-    ? ""
-    : `
-    <div class="submit-explanation"></div>
-    <button class="followup-toggle">Ask a follow-up ↓</button>
-    <div class="followup-chat" hidden>
-      <div class="followup-messages"></div>
-      <div class="followup-input-row">
-        <input type="text" class="followup-input" placeholder="Ask about this feedback..." />
-        <button class="followup-send">Send</button>
-      </div>
-    </div>
-  `;
+  const explanationBlock = data.all_passed ? "" : `<div class="submit-explanation"></div>`;
 
   card.innerHTML = `
     <span class="submit-verdict">${verdictText}</span>
@@ -413,11 +482,19 @@ function appendSubmitCard(problemTitle, code, data) {
   `;
 
   hintFeed.appendChild(card);
-  hintFeed.scrollTop = hintFeed.scrollHeight;
+  scrollFeed();
 
   if (!data.all_passed) {
-    card.querySelector(".submit-explanation").innerHTML = renderInline(data.explanation);
-    wireFollowup(card, buildSubmitContext(problemTitle, code, data));
+    card.querySelector(".submit-explanation").innerHTML =
+      renderInline(data.explanation) + '<span class="ask-more">Questions about this? Ask the coach below.</span>';
+    const failing = data.results.filter((r) => !r.passed)
+      .map((r) => `expected ${JSON.stringify(r.expected)}, got ${r.error || JSON.stringify(r.actual)}`).join("; ");
+    chatHistory.push({ role: "user", content: `I submitted my code for ${problemTitle}. Failing tests: ${failing}` });
+    chatHistory.push({ role: "assistant", content: data.explanation });
+  } else if (!current.solved) {
+    current.solved = true;
+    api(`/api/problems/${current.trackedId}/solve`, { method: "POST" }).catch(() => {});
+    updateSolveButton();
   }
 }
 
@@ -429,9 +506,8 @@ async function submitCode() {
   submitBtn.textContent = "Running...";
 
   try {
-    const res = await fetch("/api/submit", {
+    const res = await api("/api/submit", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ problem_id: current.id, language: languageSelect.value, code }),
     });
     const data = await res.json();
