@@ -268,6 +268,11 @@ async function selectProblem(p) {
 
   hintBtn.disabled = false;
   setHintLevel(1);
+  const intro = hintFeed.querySelector(".hint-feed-empty p");
+  if (intro) intro.innerHTML = "<b>You're on " + escapeHtml(p.title) + ".</b> Write your solution in the editor, grab a hint when you're stuck, or ask the coach anything.";
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    requestAnimationFrame(() => selectedProblemEl.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   ladder.querySelectorAll(".rung").forEach((r) => r.classList.remove("used"));
 
   const tracked = await findOrCreateTracked(p.title, p.difficulty);
