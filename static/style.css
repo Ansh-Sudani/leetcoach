@@ -547,7 +547,7 @@ code {
 .rung.used b { background: var(--accent-soft); color: var(--accent); }
 .rung.used.active b { background: var(--accent); color: #fff; }
 
-@media (max-width: 520px) { .rung { font-size: 0; gap: 0; } .rung b { font-size: 11px; } }
+@media (max-width: 520px) { .rung { flex-direction: column; gap: 3px; padding: 6px 2px; font-size: 10.5px; } .rung b { font-size: 11px; } }
 
 /* ---------- Feed (hints, results, chat) ---------- */
 
@@ -775,3 +775,39 @@ code {
 .btn-ghost.solved:hover { color: var(--hard); border-color: var(--hard); background: rgba(224, 70, 76, 0.06); }
 .btn-ghost.solved:hover .when-idle { display: none; }
 .btn-ghost.solved:hover .when-hover { display: inline; }
+
+/* ---------- Touch / phone polish ---------- */
+a, button, summary, select { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+@media (max-width: 900px) {
+  /* 16px+ stops iOS Safari from zooming in when a field is tapped */
+  #problem-search, .chat-bar input, .details-toggle textarea, .editor-title select { font-size: 16px; }
+  .CodeMirror textarea { font-size: 16px !important; }
+  .CodeMirror { font-size: 14px; }
+
+  /* comfortable tap targets (~44px) */
+  .theme-btn { width: 42px; height: 42px; }
+  .rung { min-height: 42px; }
+  .hint-controls .btn-accent { min-height: 44px; padding: 0 20px; }
+  .editor-header-actions .btn-accent { min-height: 40px; padding: 0 18px; }
+  .reset-btn, .editor-title select { min-height: 38px; }
+  .chip { padding: 9px 13px; font-size: 13.5px; }
+  .btn-ghost { min-height: 38px; }
+  .chat-bar .btn-dark { width: 48px; }
+  .chat-bar input { padding: 12px 14px; }
+  .details-toggle summary { padding: 8px 0; }
+  .combobox-option { padding: 12px 10px; font-size: 14.5px; }
+
+  /* give the editor a sensible height on phones */
+  .editor-pane { min-height: 0; }
+  .CodeMirror { min-height: 360px; height: 60vh; }
+}
+
+@media (max-width: 420px) {
+  .hint-controls { gap: 8px; }
+  .ladder { flex-basis: 100%; }
+  .hint-controls .btn-accent { flex: 1; }
+  .editor-header { flex-wrap: wrap; row-gap: 8px; }
+  .dot-row { display: none; }
+}
+.selected-problem { scroll-margin-top: 12px; }
